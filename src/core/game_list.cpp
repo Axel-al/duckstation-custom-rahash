@@ -94,6 +94,7 @@ using PlayedTimeMap = UnorderedStringMap<PlayedTimeEntry>;
 static_assert(std::is_same_v<decltype(Entry::hash), GameHash>);
 
 static bool ShouldLoadAchievementsProgress();
+static void LoadAchievementsProgressDatabase(Achievements::ProgressDatabase* achievements_progress);
 
 static bool GetExeListEntry(const std::string& path, Entry* entry);
 static bool GetPsfListEntry(const std::string& path, Entry* entry);
@@ -203,6 +204,16 @@ bool GameList::ShouldShowLocalizedTitles()
 bool GameList::ShouldLoadAchievementsProgress()
 {
   return Core::ContainsBaseSettingValue("Cheevos", "Token");
+}
+
+void GameList::LoadAchievementsProgressDatabase(Achievements::ProgressDatabase* achievements_progress)
+{
+  if (!ShouldLoadAchievementsProgress())
+    return;
+
+  Error error;
+  if (!achievements_progress->Load(&error))
+    WARNING_LOG("Failed to load achievements progress: {}", error.GetDescription());
 }
 
 bool GameList::PreferAchievementGameBadgesForIcons()
@@ -742,6 +753,12 @@ bool GameList::RescanCustomAttributesForPath(const std::string& path, const INIS
   }
 
   ApplyCustomAttributes(entry.path, &entry, custom_attributes_ini);
+  if (entry.IsDisc())
+  {
+    Achievements::ProgressDatabase achievements_progress;
+    LoadAchievementsProgressDatabase(&achievements_progress);
+    PopulateEntryAchievements(&entry, achievements_progress);
+  }
 
   std::unique_lock lock(s_state.mutex);
 
@@ -2139,40 +2156,90 @@ bool GameList::SaveCustomLanguageForPath(const std::string& path,
 bool GameList::SaveCustomAchievementsHashForPath(const std::string& path, const std::string& custom_hash)
 {
   INISettingsInterface custom_attributes_ini(GetCustomPropertiesFile());
-  if (!PutCustomPropertiesField(custom_attributes_ini, path, "AchievementsHash", custom_hash.c_str()))
-    return false;
 
-  if (!custom_hash.empty())
+  if (custom_hash.empty())
   {
-    // Parse and apply directly.
-    bool valid = (custom_hash.length() == 32);
-    std::array<u8, 16> parsed_hash = {};
-    for (size_t i = 0; i < 16 && valid; i++)
-    {
-      const std::optional<u8> byte = StringUtil::FromChars<u8>(std::string_view(custom_hash).substr(i * 2, 2), 16);
-      if (byte.has_value())
-        parsed_hash[i] = byte.value();
-      else
-        valid = false;
-    }
+    if (!PutCustomPropertiesField(custom_attributes_ini, path, "AchievementsHash", std::string_view()))
+      return false;
 
-    if (valid)
-    {
-      auto lock = GetLock();
-      Entry* entry = GetMutableEntryForPath(path);
-      if (entry)
-      {
-        entry->achievements_hash = parsed_hash;
-        entry->has_custom_achievements_hash = true;
-        NotifyHostOfEntryChange(entry);
-      }
-    }
-
-    return valid;
+    // Clearing: rescan to restore original hash.
+    RescanCustomAttributesForPath(path, custom_attributes_ini);
+    return true;
   }
 
-  // Clearing: rescan to restore original hash.
-  RescanCustomAttributesForPath(path, custom_attributes_ini);
+  // Parse and validate.
+  bool valid = (custom_hash.length() == 32);
+  std::array<u8, 16> parsed_hash = {};
+  for (size_t i = 0; i < 16 && valid; i++)
+  {
+    const std::optional<u8> byte = StringUtil::FromChars<u8>(std::string_view(custom_hash).substr(i * 2, 2), 16);
+    if (byte.has_value())
+      parsed_hash[i] = byte.value();
+    else
+      valid = false;
+  }
+  if (!valid)
+    return false;
+
+  bool treat_as_no_override = false;
+  bool entry_has_custom_hash = false;
+  {
+    const auto lock = GetLock();
+    const Entry* entry = GetEntryForPath(path);
+    if (entry)
+    {
+      entry_has_custom_hash = entry->has_custom_achievements_hash;
+      if (!entry->has_custom_achievements_hash &&
+          std::memcmp(entry->achievements_hash.data(), parsed_hash.data(), parsed_hash.size()) == 0)
+      {
+        // Same value as the current non-custom hash, keep it as non-overridden.
+        treat_as_no_override = true;
+      }
+    }
+  }
+
+  // When a custom hash already exists, compare against the default hash from media to detect "back to original".
+  if (!treat_as_no_override && entry_has_custom_hash)
+  {
+    Entry original_entry;
+    if (PopulateEntryFromPath(path, &original_entry) && original_entry.IsDisc() &&
+        std::memcmp(original_entry.achievements_hash.data(), parsed_hash.data(), parsed_hash.size()) == 0)
+    {
+      treat_as_no_override = true;
+    }
+  }
+
+  if (treat_as_no_override)
+  {
+    if (!PutCustomPropertiesField(custom_attributes_ini, path, "AchievementsHash", std::string_view()))
+      return false;
+
+    if (entry_has_custom_hash)
+      RescanCustomAttributesForPath(path, custom_attributes_ini);
+    return true;
+  }
+
+  if (!PutCustomPropertiesField(custom_attributes_ini, path, "AchievementsHash", custom_hash))
+    return false;
+
+  Achievements::ProgressDatabase achievements_progress;
+  LoadAchievementsProgressDatabase(&achievements_progress);
+
+  auto lock = GetLock();
+  Entry* entry = GetMutableEntryForPath(path);
+  if (entry)
+  {
+    entry->achievements_hash = parsed_hash;
+    entry->has_custom_achievements_hash = true;
+    entry->achievements_game_id = 0;
+    entry->num_achievements = 0;
+    entry->unlocked_achievements = 0;
+    entry->unlocked_achievements_hc = 0;
+    if (entry->IsDiscOrDiscSet())
+      PopulateEntryAchievements(entry, achievements_progress);
+    NotifyHostOfEntryChange(entry);
+  }
+
   return true;
 }
 
