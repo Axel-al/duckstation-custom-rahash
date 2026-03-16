@@ -100,6 +100,15 @@ GameSummaryWidget::GameSummaryWidget(const GameList::Entry* entry, SettingsWindo
   connect(m_ui.region, &QComboBox::currentIndexChanged, this, &GameSummaryWidget::setCustomRegion);
   connect(m_ui.restoreRegion, &QAbstractButton::clicked, this, [this]() { setCustomRegion(-1); });
   connect(m_ui.customLanguage, &QComboBox::currentIndexChanged, this, &GameSummaryWidget::onCustomLanguageChanged);
+
+  connect(m_ui.achievementsHash, &QLineEdit::editingFinished, this, [this]() {
+    if (m_ui.achievementsHash->isModified())
+    {
+      setCustomAchievementsHash(m_ui.achievementsHash->text().trimmed().toStdString());
+      m_ui.achievementsHash->setModified(false);
+    }
+  });
+  connect(m_ui.restoreAchievementsHash, &QAbstractButton::clicked, this, [this]() { setCustomAchievementsHash({}); });
 }
 
 GameSummaryWidget::~GameSummaryWidget() = default;
@@ -144,11 +153,26 @@ void GameSummaryWidget::populateUi(const GameList::Entry* entry)
   if (entry->IsDiscOrDiscSet())
   {
     m_ui.hashes->setText(QtUtils::StringViewToQString(SmallString::from_format(
-      "HASH-{:016X} | RA: {}", entry->hash, Achievements::GameHashToString(entry->achievements_hash))));
+      "HASH-{:016X}", entry->hash)));
+    const TinyString ra_hash_str = Achievements::GameHashToString(entry->achievements_hash);
+    m_original_achievements_hash = std::string(ra_hash_str.view());
+    if (entry->has_custom_achievements_hash)
+    {
+      m_ui.achievementsHash->setText(QtUtils::StringViewToQString(ra_hash_str.view()));
+      m_ui.restoreAchievementsHash->setEnabled(true);
+    }
+    else
+    {
+      m_ui.achievementsHash->setText(QtUtils::StringViewToQString(ra_hash_str.view()));
+      m_ui.restoreAchievementsHash->setEnabled(false);
+    }
   }
   else
   {
     m_ui.hashes->setText(tr("N/A"));
+    m_ui.achievementsHash->setText(tr("N/A"));
+    m_ui.achievementsHash->setReadOnly(true);
+    m_ui.restoreAchievementsHash->setEnabled(false);
   }
   m_ui.title->setText(QtUtils::StringViewToQString(entry->GetDisplayTitle(GameList::ShouldShowLocalizedTitles())));
   m_ui.region->setCurrentIndex(static_cast<int>(entry->region));
@@ -445,6 +469,51 @@ void GameSummaryWidget::onCustomLanguageChanged(int language)
                              std::optional<GameDatabase::Language>());
 
   g_main_window->getGameListWidget()->getModel()->invalidateColumnForPath(m_path, GameListModel::Column_Region);
+}
+
+void GameSummaryWidget::setCustomAchievementsHash(const std::string& text)
+{
+  if (!text.empty())
+  {
+    // Validate: must be 32 hex characters.
+    if (text.length() != 32)
+    {
+      QtUtils::AsyncMessageBox(this, QMessageBox::Warning, tr("Invalid RA Hash"),
+                               tr("RA Hash must be exactly 32 hexadecimal characters."));
+      m_ui.achievementsHash->setText(QString::fromStdString(m_original_achievements_hash));
+      return;
+    }
+    for (char c : text)
+    {
+      if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+      {
+        QtUtils::AsyncMessageBox(this, QMessageBox::Warning, tr("Invalid RA Hash"),
+                                 tr("RA Hash must be exactly 32 hexadecimal characters."));
+        m_ui.achievementsHash->setText(QString::fromStdString(m_original_achievements_hash));
+        return;
+      }
+    }
+  }
+
+  // Convert to lowercase for consistency.
+  std::string hash_lower = text;
+  for (char& c : hash_lower)
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+  GameList::SaveCustomAchievementsHashForPath(m_path, hash_lower);
+
+  {
+    const auto lock = GameList::GetLock();
+    const GameList::Entry* entry = GameList::GetEntryForPath(m_path);
+    if (entry)
+    {
+      const TinyString ra_hash_str = Achievements::GameHashToString(entry->achievements_hash);
+      m_ui.achievementsHash->setText(QtUtils::StringViewToQString(ra_hash_str.view()));
+      m_ui.restoreAchievementsHash->setEnabled(entry->has_custom_achievements_hash);
+      if (!entry->has_custom_achievements_hash)
+        m_original_achievements_hash = std::string(ra_hash_str.view());
+    }
+  }
 }
 
 static QString MSFToString(const CDImage::Position& position)

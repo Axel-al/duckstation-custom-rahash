@@ -416,6 +416,7 @@ void GameList::MakeInvalidEntry(Entry* entry)
   entry->has_custom_title = false;
   entry->has_custom_serial = false;
   entry->has_custom_region = false;
+  entry->has_custom_achievements_hash = false;
   entry->is_runtime_populated = false;
   entry->custom_language = GameDatabase::Language::MaxCount;
   entry->path = {};
@@ -808,6 +809,31 @@ void GameList::ApplyCustomAttributes(const std::string& path, Entry* entry,
     else
     {
       WARNING_LOG("Invalid language '{}' in custom attributes for '{}'", custom_language_str.value(), path);
+    }
+  }
+
+  const std::optional<SmallString> custom_ahash_str =
+    custom_attributes_ini.GetOptionalSmallStringValue(section.c_str(), "AchievementsHash");
+  if (custom_ahash_str.has_value() && custom_ahash_str->length() == 32)
+  {
+    bool valid = true;
+    std::array<u8, 16> parsed_hash = {};
+    for (size_t i = 0; i < 16 && valid; i++)
+    {
+      const std::optional<u8> byte = StringUtil::FromChars<u8>(custom_ahash_str->substr(i * 2, 2), 16);
+      if (byte.has_value())
+        parsed_hash[i] = byte.value();
+      else
+        valid = false;
+    }
+    if (valid)
+    {
+      entry->achievements_hash = parsed_hash;
+      entry->has_custom_achievements_hash = true;
+    }
+    else
+    {
+      WARNING_LOG("Invalid achievements hash '{}' in custom attributes for '{}'", custom_ahash_str.value(), path);
     }
   }
 }
@@ -2107,6 +2133,46 @@ bool GameList::SaveCustomLanguageForPath(const std::string& path,
     NotifyHostOfEntryChange(entry);
   }
 
+  return true;
+}
+
+bool GameList::SaveCustomAchievementsHashForPath(const std::string& path, const std::string& custom_hash)
+{
+  INISettingsInterface custom_attributes_ini(GetCustomPropertiesFile());
+  if (!PutCustomPropertiesField(custom_attributes_ini, path, "AchievementsHash", custom_hash.c_str()))
+    return false;
+
+  if (!custom_hash.empty())
+  {
+    // Parse and apply directly.
+    bool valid = (custom_hash.length() == 32);
+    std::array<u8, 16> parsed_hash = {};
+    for (size_t i = 0; i < 16 && valid; i++)
+    {
+      const std::optional<u8> byte = StringUtil::FromChars<u8>(std::string_view(custom_hash).substr(i * 2, 2), 16);
+      if (byte.has_value())
+        parsed_hash[i] = byte.value();
+      else
+        valid = false;
+    }
+
+    if (valid)
+    {
+      auto lock = GetLock();
+      Entry* entry = GetMutableEntryForPath(path);
+      if (entry)
+      {
+        entry->achievements_hash = parsed_hash;
+        entry->has_custom_achievements_hash = true;
+        NotifyHostOfEntryChange(entry);
+      }
+    }
+
+    return valid;
+  }
+
+  // Clearing: rescan to restore original hash.
+  RescanCustomAttributesForPath(path, custom_attributes_ini);
   return true;
 }
 

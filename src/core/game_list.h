@@ -40,6 +40,7 @@ struct Entry
   bool has_custom_title : 1 = false;
   bool has_custom_serial : 1 = false;
   bool has_custom_region : 1 = false;
+  bool has_custom_achievements_hash : 1 = false;
   bool is_runtime_populated : 1 = false;
   GameDatabase::Language custom_language = GameDatabase::Language::MaxCount;
 
@@ -168,6 +169,7 @@ bool SaveCustomTitleForPath(const std::string& path, const std::string& custom_t
 bool SaveCustomSerialForPath(const std::string& path, const std::string& custom_serial);
 bool SaveCustomRegionForPath(const std::string& path, const std::optional<DiscRegion> custom_region);
 bool SaveCustomLanguageForPath(const std::string& path, const std::optional<GameDatabase::Language> custom_language);
+bool SaveCustomAchievementsHashForPath(const std::string& path, const std::string& custom_hash);
 std::optional<DiscRegion> GetCustomRegionForPath(const std::string_view path);
 
 /// The purpose of this cache is to stop us trying to constantly extract memory card icons, when we know a game

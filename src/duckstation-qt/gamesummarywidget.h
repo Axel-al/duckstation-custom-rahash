@@ -35,6 +35,7 @@ private:
   void setCustomTitle(const std::string& text);
   void setCustomDiscSetTitle(const std::string& text);
   void setCustomRegion(int region);
+  void setCustomAchievementsHash(const std::string& text);
 
   void populateTracksInfo();
   void disableWidgetsForRuntimeScannedEntry();
@@ -57,5 +58,6 @@ private:
 
   std::string m_path;
   std::string m_redump_search_keyword;
+  std::string m_original_achievements_hash;
   QString m_compatibility_comments;
 };

@@ -1269,6 +1269,18 @@ bool Achievements::IdentifyGame(CDImage* image)
 
   s_state.game_path = image ? image->GetPath() : std::string();
 
+  // Check for custom achievements hash override from game list.
+  if (game_hash.has_value() && !s_state.game_path.empty())
+  {
+    const auto gl_lock = GameList::GetLock();
+    const GameList::Entry* entry = GameList::GetEntryForPath(s_state.game_path);
+    if (entry && entry->has_custom_achievements_hash)
+    {
+      INFO_LOG("Using custom achievements hash override for '{}'", s_state.game_path);
+      game_hash = entry->achievements_hash;
+    }
+  }
+
   if (s_state.game_hash == game_hash)
   {
     // only the path has changed - different format/save state/etc.
