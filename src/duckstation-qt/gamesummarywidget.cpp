@@ -39,6 +39,12 @@ GameSummaryWidget::GameSummaryWidget(const GameList::Entry* entry, SettingsWindo
 {
   m_ui.setupUi(this);
 
+  std::string current_running_game_path;
+  Host::RunOnCoreThread(
+    [&current_running_game_path]() { current_running_game_path = System::IsValid() ? System::GetGamePath() : ""; },
+    true);
+  m_current_running_game_path = std::move(current_running_game_path);
+
   for (u32 i = 0; i < static_cast<u32>(GameList::EntryType::MaxCount); i++)
   {
     m_ui.entryType->addItem(
@@ -109,6 +115,11 @@ GameSummaryWidget::GameSummaryWidget(const GameList::Entry* entry, SettingsWindo
     }
   });
   connect(m_ui.restoreAchievementsHash, &QAbstractButton::clicked, this, [this]() { setCustomAchievementsHash({}); });
+  connect(g_core_thread, &CoreThread::systemGameChanged, this,
+          [this](const QString& path, const QString&, const QString&) {
+            m_current_running_game_path = path.toStdString();
+            updateAchievementsHashReadOnlyState();
+          });
 }
 
 GameSummaryWidget::~GameSummaryWidget() = default;
@@ -145,6 +156,7 @@ void GameSummaryWidget::reloadGameSettings()
 void GameSummaryWidget::populateUi(const GameList::Entry* entry)
 {
   m_path = entry->path;
+  m_achievements_hash_is_disc_entry = entry->IsDiscOrDiscSet();
 
   m_ui.path->setText(QString::fromStdString(entry->path));
   m_ui.serial->setText(entry->has_custom_serial ?
@@ -156,24 +168,16 @@ void GameSummaryWidget::populateUi(const GameList::Entry* entry)
       "HASH-{:016X}", entry->hash)));
     const TinyString ra_hash_str = Achievements::GameHashToString(entry->achievements_hash);
     m_original_achievements_hash = std::string(ra_hash_str.view());
-    if (entry->has_custom_achievements_hash)
-    {
-      m_ui.achievementsHash->setText(QtUtils::StringViewToQString(ra_hash_str.view()));
-      m_ui.restoreAchievementsHash->setEnabled(true);
-    }
-    else
-    {
-      m_ui.achievementsHash->setText(QtUtils::StringViewToQString(ra_hash_str.view()));
-      m_ui.restoreAchievementsHash->setEnabled(false);
-    }
+    m_achievements_hash_has_custom_override = entry->has_custom_achievements_hash;
+    m_ui.achievementsHash->setText(QtUtils::StringViewToQString(ra_hash_str.view()));
   }
   else
   {
     m_ui.hashes->setText(tr("N/A"));
     m_ui.achievementsHash->setText(tr("N/A"));
-    m_ui.achievementsHash->setReadOnly(true);
-    m_ui.restoreAchievementsHash->setEnabled(false);
+    m_achievements_hash_has_custom_override = false;
   }
+  updateAchievementsHashReadOnlyState();
   m_ui.title->setText(QtUtils::StringViewToQString(entry->GetDisplayTitle(GameList::ShouldShowLocalizedTitles())));
   m_ui.region->setCurrentIndex(static_cast<int>(entry->region));
   m_ui.entryType->setCurrentIndex(static_cast<int>(entry->type));
@@ -509,11 +513,20 @@ void GameSummaryWidget::setCustomAchievementsHash(const std::string& text)
     {
       const TinyString ra_hash_str = Achievements::GameHashToString(entry->achievements_hash);
       m_ui.achievementsHash->setText(QtUtils::StringViewToQString(ra_hash_str.view()));
-      m_ui.restoreAchievementsHash->setEnabled(entry->has_custom_achievements_hash);
+      m_achievements_hash_has_custom_override = entry->has_custom_achievements_hash;
       if (!entry->has_custom_achievements_hash)
         m_original_achievements_hash = std::string(ra_hash_str.view());
+      updateAchievementsHashReadOnlyState();
     }
   }
+}
+
+void GameSummaryWidget::updateAchievementsHashReadOnlyState()
+{
+  const bool read_only = (!m_achievements_hash_is_disc_entry ||
+                          (!m_current_running_game_path.empty() && m_current_running_game_path == m_path));
+  m_ui.achievementsHash->setReadOnly(read_only);
+  m_ui.restoreAchievementsHash->setEnabled(!read_only && m_achievements_hash_has_custom_override);
 }
 
 static QString MSFToString(const CDImage::Position& position)

@@ -36,6 +36,7 @@ private:
   void setCustomDiscSetTitle(const std::string& text);
   void setCustomRegion(int region);
   void setCustomAchievementsHash(const std::string& text);
+  void updateAchievementsHashReadOnlyState();
 
   void populateTracksInfo();
   void disableWidgetsForRuntimeScannedEntry();
@@ -59,5 +60,8 @@ private:
   std::string m_path;
   std::string m_redump_search_keyword;
   std::string m_original_achievements_hash;
+  std::string m_current_running_game_path;
+  bool m_achievements_hash_is_disc_entry = false;
+  bool m_achievements_hash_has_custom_override = false;
   QString m_compatibility_comments;
 };

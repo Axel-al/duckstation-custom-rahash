@@ -46,3 +46,6 @@ __pycache__
 # other repos
 /android
 
+#build script
+build.bat
+
