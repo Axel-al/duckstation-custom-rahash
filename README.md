@@ -1,14 +1,54 @@
 # DuckStation - PlayStation 1, aka. PSX Emulator
 
-[Features](#features) | [Downloading and Running](#downloading-and-running) | [Building](#building) | [Disclaimers](#disclaimers)
+> [!NOTE]
+> This repository is a personal fork of DuckStation.
+>
+> Fork-specific changes:
+> - Adds an editable RetroAchievements (RA) hash field in the Game Properties window
+> - Allows restoring the default RA hash
+> - Applies the custom RA hash to RetroAchievements-related game matching
+> - Refreshes achievement-related game list data immediately after RA hash changes
+> - Prevents editing the RA hash for the game that is currently running
+>
+> This fork is intended for custom use and may not always be fully in sync with upstream DuckStation.
+
+[Fork Information](#fork-information) | [Features](#features) | [Downloading and Running](#downloading-and-running) | [Building](#building) | [Disclaimers](#disclaimers)
 
 **Latest Builds for Windows 10/11 (x64/ARM64), Linux (AppImage x64/ARM32/ARM64), and macOS (13.3+ Universal):** https://github.com/stenzek/duckstation/releases/tag/latest
 
 **Discord Server:** https://www.duckstation.org/discord.html
 
-DuckStation is an simulator/emulator of the Sony PlayStation(TM) console, focusing on playability, speed, and long-term maintainability. The goal is to be as accurate as possible while maintaining performance suitable for low-end devices. "Hack" options are discouraged, the default configuration should support all playable games with only some of the enhancements having compatibility issues.
+DuckStation is a simulator/emulator of the Sony PlayStation(TM) console, focusing on playability, speed, and long-term maintainability. The goal is to be as accurate as possible while maintaining performance suitable for low-end devices. "Hack" options are discouraged, the default configuration should support all playable games with only some of the enhancements having compatibility issues.
 
-A PS1 or PS2 "BIOS" ROM image is required to to start the emulator and to play games. You can use an image from any hardware version or region, although mismatching game regions and BIOS regions may have compatibility issues. A ROM image is not provided with the emulator for legal reasons, you should dump this from your own console using Caetla or other means.
+A PS1 or PS2 "BIOS" ROM image is required to start the emulator and to play games. You can use an image from any hardware version or region, although mismatching game regions and BIOS regions may have compatibility issues. A ROM image is not provided with the emulator for legal reasons, you should dump this from your own console using Caetla or other means.
+
+## Fork Information
+
+This repository is based on the official DuckStation project:
+https://github.com/stenzek/duckstation
+
+### Fork-specific changes
+
+This fork adds a small RetroAchievements-related customization to DuckStation.
+
+#### RetroAchievements hash override
+- The Game Properties window includes an editable `RA Hash` field
+- A restore button allows reverting to the default hash
+- The edited value is validated as a 32-character hexadecimal hash
+- The custom value is saved as a per-game override
+
+#### Runtime behavior
+- When the RA hash is changed or restored, achievement-related game list metadata is refreshed immediately
+- If the edited hash matches the original media hash, the custom override is cleared instead of being kept as a custom value
+- The RA hash field becomes read-only for the game that is currently running
+
+### Intended use
+
+This fork is mainly intended to help with RetroAchievements recognition for lightly modified game images, such as translation patches, uncensor patches, 60Hz patches, or small quality-of-life / visual improvement patches.
+
+It is **not** intended for cheat patches, gameplay-altering hacks, or completely different/custom ROMs. The editable RA hash override should only be used with patches that leave the original game substantially unchanged in terms of gameplay and overall content.
+
+For example, this fork was created to allow RetroAchievements to be recognized on a PAL copy of Silent Hill patched for 60Hz output and PAL uncensoring, while still remaining fundamentally the same game.
 
 ## Features
 
