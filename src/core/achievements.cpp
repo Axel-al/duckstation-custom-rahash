@@ -696,9 +696,10 @@ bool Achievements::Initialize()
 
   // Hardcore starts off. We enable it on first boot.
   rc_client_set_hardcore_enabled(s_state.client, false);
-  rc_client_set_encore_mode_enabled(s_state.client, g_settings.achievements_encore_mode);
   rc_client_set_unofficial_enabled(s_state.client, g_settings.achievements_unofficial_test_mode);
   rc_client_set_spectator_mode_enabled(s_state.client, g_settings.achievements_spectator_mode);
+  rc_client_set_encore_mode_enabled(s_state.client,
+                                    !g_settings.achievements_spectator_mode && g_settings.achievements_encore_mode);
 
   // We can't do an internal client login while using RAIntegration, since the two will conflict.
   if (!IsRAIntegrationInitializing())
@@ -882,10 +883,13 @@ void Achievements::UpdateSettings(const Settings& old_config)
 
 void Achievements::UpdateModeSettings(const Settings& old_config)
 {
-  if (g_settings.achievements_encore_mode != old_config.achievements_encore_mode)
-    rc_client_set_encore_mode_enabled(s_state.client, g_settings.achievements_encore_mode);
-  if (g_settings.achievements_spectator_mode != old_config.achievements_spectator_mode)
+  if (g_settings.achievements_encore_mode != old_config.achievements_encore_mode ||
+      g_settings.achievements_spectator_mode != old_config.achievements_spectator_mode)
+  {
+    rc_client_set_encore_mode_enabled(s_state.client,
+                                      !g_settings.achievements_spectator_mode && g_settings.achievements_encore_mode);
     rc_client_set_spectator_mode_enabled(s_state.client, g_settings.achievements_spectator_mode);
+  }
   if (g_settings.achievements_unofficial_test_mode != old_config.achievements_unofficial_test_mode)
     rc_client_set_unofficial_enabled(s_state.client, g_settings.achievements_unofficial_test_mode);
 }
@@ -1518,6 +1522,23 @@ void Achievements::DisplayAchievementSummary()
   // Technically not going through the resource API, but since we're passing this to something else, we can't.
   if (g_settings.achievements_sound_effects)
     SoundEffectManager::EnqueueSoundEffect(INFO_SOUND_NAME);
+
+  // Warn when spectator mode is enabled.
+  if (rc_client_get_spectator_mode_enabled(s_state.client))
+  {
+    Host::AddIconOSDMessage(
+      OSDMessageType::Warning, "SpectatorOrEncoreMode", RA_LOGO_ICON_NAME,
+      TRANSLATE_STR("Achievements", "Spectator mode enabled."),
+      TRANSLATE_STR("Achievements", "All achievements are locked, and unlocks will not be recorded in your account."));
+  }
+  else if (rc_client_get_encore_mode_enabled(s_state.client))
+  {
+    Host::AddIconOSDMessage(
+      OSDMessageType::Warning, "SpectatorOrEncoreMode", RA_LOGO_ICON_NAME,
+      TRANSLATE_STR("Achievements", "Encore mode enabled."),
+      TRANSLATE_STR("Achievements",
+                    "All achievements are locked, but unlocks will still be recorded in your account."));
+  }
 }
 
 void Achievements::DisplayHardcoreDeferredMessage()
@@ -3534,6 +3555,10 @@ void Achievements::LoadPinnedAchievements()
     indicator.achievement_id = id.value();
     indicator.badge_path = GetAchievementBadgePath(achievement, false);
     s_state.pinned_achievement_indicators.push_back(std::move(indicator));
+    std::sort(s_state.pinned_achievement_indicators.begin(), s_state.pinned_achievement_indicators.end(),
+              [](const PinnedAchievementIndicator& lhs, const PinnedAchievementIndicator& rhs) {
+                return (lhs.achievement_id < rhs.achievement_id);
+              });
   }
 
   DEV_LOG("Loaded {} pinned achievements for game {}", s_state.pinned_achievement_indicators.size(), s_state.game_id);
@@ -3580,21 +3605,22 @@ void Achievements::SavePinnedAchievements()
 
 bool Achievements::IsAchievementPinned(u32 achievement_id)
 {
-  return std::any_of(
-    s_state.pinned_achievement_indicators.begin(), s_state.pinned_achievement_indicators.end(),
-    [achievement_id](const PinnedAchievementIndicator& ind) { return ind.achievement_id == achievement_id; });
+  const auto it = std::lower_bound(
+    s_state.pinned_achievement_indicators.begin(), s_state.pinned_achievement_indicators.end(), achievement_id,
+    [](const PinnedAchievementIndicator& ind, u32 search) { return ind.achievement_id < search; });
+  return (it != s_state.pinned_achievement_indicators.end() && it->achievement_id == achievement_id);
 }
 
 void Achievements::SetAchievementPinned(u32 achievement_id, bool pinned)
 {
-  const auto it = std::find_if(
-    s_state.pinned_achievement_indicators.begin(), s_state.pinned_achievement_indicators.end(),
-    [achievement_id](const PinnedAchievementIndicator& ind) { return ind.achievement_id == achievement_id; });
-
-  if ((it != s_state.pinned_achievement_indicators.end()) == pinned)
+  const auto it = std::lower_bound(
+    s_state.pinned_achievement_indicators.begin(), s_state.pinned_achievement_indicators.end(), achievement_id,
+    [](const PinnedAchievementIndicator& ind, u32 search) { return ind.achievement_id < search; });
+  const bool is_pinned = (it != s_state.pinned_achievement_indicators.end() && it->achievement_id == achievement_id);
+  if (is_pinned == pinned)
     return;
 
-  if (it != s_state.pinned_achievement_indicators.end())
+  if (is_pinned)
   {
     DEV_LOG("Unpinning achievement {}", achievement_id);
     s_state.pinned_achievement_indicators.erase(it);
@@ -3612,7 +3638,7 @@ void Achievements::SetAchievementPinned(u32 achievement_id, bool pinned)
     PinnedAchievementIndicator indicator;
     indicator.achievement_id = achievement_id;
     indicator.badge_path = GetAchievementBadgePath(achievement, false);
-    s_state.pinned_achievement_indicators.push_back(std::move(indicator));
+    s_state.pinned_achievement_indicators.insert(it, std::move(indicator));
 
     // Hide progress indicator if it was set
     if (s_state.active_progress_indicator.has_value() &&

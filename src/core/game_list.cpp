@@ -247,13 +247,11 @@ bool GameList::GetExeListEntry(const std::string& path, GameList::Entry* entry)
   if (entry->file_size < 0)
     return false;
 
-  // Stupid Android...
-  const std::string filename = FileSystem::GetDisplayNameFromPath(path);
-
-  entry->title = Path::GetFileTitle(filename);
+  entry->title = Path::GetFileTitle(path);
   entry->type = EntryType::PSExe;
 
-  if (StringUtil::EndsWithNoCase(filename, ".cpe"))
+  const std::string_view extension = Path::GetExtension(path);
+  if (StringUtil::EqualNoCase(extension, "cpe"))
   {
     u32 magic;
     if (std::fread(&magic, sizeof(magic), 1, fp.get()) != 1 || magic != BIOS::CPE_MAGIC)
@@ -265,7 +263,7 @@ bool GameList::GetExeListEntry(const std::string& path, GameList::Entry* entry)
     // Who knows
     entry->region = DiscRegion::Other;
   }
-  else if (StringUtil::EndsWithNoCase(filename, ".elf"))
+  else if (StringUtil::EqualNoCase(extension, "elf"))
   {
     ELFFile::Elf32_Ehdr header;
     if (std::fread(&header, sizeof(header), 1, fp.get()) != 1 || !ELFFile::IsValidElfHeader(header))
@@ -298,7 +296,7 @@ bool GameList::GetExeListEntry(const std::string& path, GameList::Entry* entry)
     return false;
   }
 
-  const GameHash hash = System::GetGameHashFromBuffer(filename, data->cspan());
+  const GameHash hash = System::GetGameHashFromBuffer(path, data->cspan());
   entry->serial = hash ? System::GetGameHashId(hash) : std::string();
   return true;
 }
@@ -334,14 +332,9 @@ bool GameList::GetPsfListEntry(const std::string& path, Entry* entry)
 
   std::optional<std::string> title(file.GetTagString("title"));
   if (title.has_value())
-  {
     entry->title += title.value();
-  }
   else
-  {
-    const std::string display_name(FileSystem::GetDisplayNameFromPath(path));
-    entry->title += Path::GetFileTitle(display_name);
-  }
+    entry->title += Path::GetFileTitle(path);
 
   return true;
 }
@@ -390,7 +383,7 @@ bool GameList::GetDiscListEntry(const std::string& path, Entry* entry)
   {
     // no game code, so use the filename title
     entry->serial = std::move(id);
-    entry->title = Path::GetFileTitle(FileSystem::GetDisplayNameFromPath(path));
+    entry->title = Path::GetFileTitle(path);
   }
 
   // region detection
@@ -399,7 +392,7 @@ bool GameList::GetDiscListEntry(const std::string& path, Entry* entry)
   if (cdi->HasSubImages())
   {
     entry->type = EntryType::Playlist;
-    entry->title = Path::GetFileTitle(FileSystem::GetDisplayNameFromPath(path));
+    entry->title = Path::GetFileTitle(path);
 
     // get the size of all the subimages
     const u32 subimage_count = cdi->GetSubImageCount();
@@ -627,8 +620,8 @@ void GameList::ScanDirectory(const std::string& path, bool recursive, bool only_
       continue;
     }
 
-    progress->SetStatusText(SmallString::from_format(TRANSLATE_FS("GameList", "Scanning '{}'..."),
-                                                     FileSystem::GetDisplayNameFromPath(ffd.FileName)));
+    progress->SetStatusText(
+      SmallString::from_format(TRANSLATE_FS("GameList", "Scanning '{}'..."), Path::GetFileName(ffd.FileName)));
     ScanFile(std::move(ffd.FileName), ffd.ModificationTime, lock, played_time_map, custom_attributes_ini,
              achievements_progress, path_in_cache, cache_writer);
     progress->SetProgressValue(files_scanned);
@@ -880,7 +873,7 @@ void GameList::SetCustomSerialOnEntry(Entry* entry, std::string serial, bool upd
   else if (entry->title.empty())
   {
     // if we have a custom serial but no database entry, and no custom title, fall back to filename
-    entry->title = Path::GetFileTitle(FileSystem::GetDisplayNameFromPath(entry->path));
+    entry->title = Path::GetFileTitle(entry->path);
   }
 
   if (update_played_time)
@@ -1903,10 +1896,7 @@ bool GameList::DownloadCovers(const std::vector<std::string>& url_templates, boo
         if (has_save_title)
           StringUtil::ReplaceAll(&url, "${savetitle}", Path::URLEncode(entry.GetSaveTitle()));
         if (has_file_title)
-        {
-          std::string display_name(FileSystem::GetDisplayNameFromPath(entry.path));
-          StringUtil::ReplaceAll(&url, "${filetitle}", Path::URLEncode(Path::GetFileTitle(display_name)));
-        }
+          StringUtil::ReplaceAll(&url, "${filetitle}", Path::URLEncode(Path::GetFileTitle(entry.path)));
         if (has_serial)
           StringUtil::ReplaceAll(&url, "${serial}", Path::URLEncode(entry.serial));
 

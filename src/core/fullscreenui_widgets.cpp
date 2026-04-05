@@ -964,6 +964,7 @@ bool FullscreenUI::CompilePipelines(Error* error)
   plconfig.layout = GPUPipeline::Layout::MultiTextureAndUBOAndPushConstants; // SingleTextureAndUBOAndPushConstants
   plconfig.input_layout.vertex_attributes = imgui_attributes;
   plconfig.input_layout.vertex_stride = sizeof(ImDrawVert);
+  plconfig.primitive = GPUPipeline::Primitive::Triangles;
   plconfig.blend = GPUPipeline::BlendState::GetAlphaBlendingState();
   plconfig.blend.write_mask = 0x7;
   plconfig.vertex_shader = vs.get();
@@ -1038,7 +1039,7 @@ void FullscreenUI::UpdateTransitionState()
 bool FullscreenUI::CanBlurBackground()
 {
   // If there's no video presenter, we have no way to get the current backbuffer for blurring, so don't even try.
-  return VideoPresenter::HasDisplayTexture();
+  return VideoThread::HasGPUBackend();
 }
 
 void FullscreenUI::InvalidateBlurBackground()
@@ -1256,8 +1257,8 @@ void FullscreenUI::DrawWithBlurTexture(const ImDrawList* parent_list, const ImDr
     float blur_background_weight;
     float inv_blur_background_weight;
   } uniforms;
-  uniforms.blur_background_weight = FullscreenUI::UIStyle.BlurBackgroundWeight;
-  uniforms.inv_blur_background_weight = 1.0f - FullscreenUI::UIStyle.BlurBackgroundWeight;
+  uniforms.blur_background_weight = UIStyle.BlurBackgroundWeight;
+  uniforms.inv_blur_background_weight = 1.0f - UIStyle.BlurBackgroundWeight;
   GSVector2::store<true>(uniforms.blur_texture_scale, s_state.blur_texture_scale);
 
   g_gpu_device->SetPipeline(s_state.blur_apply_pipeline.get());
@@ -1860,17 +1861,16 @@ bool FullscreenUI::BeginFullscreenWindow(const ImVec2& position, const ImVec2& s
                                   ImGuiWindowFlags_NoBringToFrontOnFocus |
                                   ((!has_background || actually_blur) ? ImGuiWindowFlags_NoBackground : 0) | flags);
 
-  if (res && actually_blur)
+  if (res && actually_blur && has_background)
   {
     ImDrawList* const dl = ImGui::GetWindowDrawList();
     const ImVec2 bg_min = position;
     const ImVec2 bg_max = position + size;
     if (BeginBlurBackground(dl, bg_min, bg_max))
     {
-      if (has_background)
-        dl->AddRectFilled(bg_min, bg_max,
-                          ImGui::GetColorU32(ImVec4(background.x * background.w, background.y * background.w,
-                                                    background.z * background.w, 1.0f)));
+      dl->AddRectFilled(bg_min, bg_max,
+                        ImGui::GetColorU32(ImVec4(background.x * background.w, background.y * background.w,
+                                                  background.z * background.w, 1.0f)));
       EndBlurBackground(dl);
     }
     else if (has_background)
@@ -1900,6 +1900,43 @@ void FullscreenUI::SetWindowNavWrapping(bool allow_wrap_x /*= false*/, bool allo
     ImGui::NavMoveRequestTryWrapping(win, (allow_wrap_x ? ImGuiNavMoveFlags_LoopX : 0) |
                                             (allow_wrap_y ? ImGuiNavMoveFlags_LoopY : 0));
   }
+}
+
+bool FullscreenUI::BeginBlurWindow(const char* name, bool* p_open /* = nullptr */, ImGuiWindowFlags flags /* = 0 */,
+                                   bool blur /* = true */)
+{
+  const ImVec4& background = GImGui->Style.Colors[ImGuiCol_WindowBg];
+  const bool actually_blur = (blur && UIStyle.BlurMenuBackground && CanBlurBackground());
+  const bool has_background = (background.w != 0.0f);
+  const bool res = ImGui::Begin(name, nullptr,
+                                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+                                  ImGuiWindowFlags_NoBringToFrontOnFocus |
+                                  ((!has_background || actually_blur) ? ImGuiWindowFlags_NoBackground : 0) | flags);
+
+  if (res && actually_blur && has_background)
+  {
+    ImDrawList* const dl = ImGui::GetWindowDrawList();
+    ImGuiWindow* const win = ImGui::GetCurrentWindow();
+    const ImVec2& bg_min = win->Pos;
+    const ImVec2& bg_max = win->Pos + win->Size;
+    if (BeginBlurBackground(dl, bg_min, bg_max))
+    {
+      if (has_background)
+      {
+        dl->AddRectFilled(bg_min, bg_max,
+                          ImGui::GetColorU32(ImVec4(background.x * background.w, background.y * background.w,
+                                                    background.z * background.w, 1.0f)),
+                          win->WindowRounding);
+      }
+      EndBlurBackground(dl);
+    }
+    else if (has_background)
+    {
+      dl->AddRectFilled(bg_min, bg_max, ImGui::GetColorU32(background), win->WindowRounding);
+    }
+  }
+
+  return res;
 }
 
 bool FullscreenUI::IsGamepadInputSource()
@@ -2028,14 +2065,19 @@ void FullscreenUI::DrawFullscreenFooter()
     prev_opacity = s_state.fullscreen_text_change_time * (1.0f / TRANSITION_TIME);
     if (prev_opacity > 0.0f)
     {
+      const u32 shadow_color = MulAlpha(UIStyle.ShadowColor, prev_opacity);
       if (!s_state.last_fullscreen_footer_text.empty())
       {
         const ImVec2 text_size = font->CalcTextSizeA(font_size, font_weight, max_width, 0.0f,
                                                      IMSTR_START_END(s_state.last_fullscreen_footer_text));
         const ImVec2 text_pos =
           ImVec2(io.DisplaySize.x - padding.x - text_size.x, io.DisplaySize.y - font_size - padding.y);
-        dl->AddText(font, font_size, font_weight, text_pos + shadow_offset, MulAlpha(UIStyle.ShadowColor, prev_opacity),
-                    IMSTR_START_END(s_state.last_fullscreen_footer_text));
+        if ((shadow_color >> IM_COL32_A_SHIFT) > 0)
+        {
+          dl->AddText(font, font_size, font_weight, text_pos + shadow_offset,
+                      MulAlpha(UIStyle.ShadowColor, prev_opacity),
+                      IMSTR_START_END(s_state.last_fullscreen_footer_text));
+        }
         dl->AddText(font, font_size, font_weight, text_pos, ModAlpha(text_color, prev_opacity),
                     IMSTR_START_END(s_state.last_fullscreen_footer_text));
       }
@@ -2043,8 +2085,12 @@ void FullscreenUI::DrawFullscreenFooter()
       if (!s_state.last_left_fullscreen_footer_text.empty())
       {
         const ImVec2 text_pos = ImVec2(padding.x, io.DisplaySize.y - font_size - padding.y);
-        dl->AddText(font, font_size, font_weight, text_pos + shadow_offset, MulAlpha(UIStyle.ShadowColor, prev_opacity),
-                    IMSTR_START_END(s_state.last_left_fullscreen_footer_text));
+        if ((shadow_color >> IM_COL32_A_SHIFT) > 0)
+        {
+          dl->AddText(font, font_size, font_weight, text_pos + shadow_offset,
+                      MulAlpha(UIStyle.ShadowColor, prev_opacity),
+                      IMSTR_START_END(s_state.last_left_fullscreen_footer_text));
+        }
         dl->AddText(font, font_size, font_weight, text_pos, ModAlpha(text_color, prev_opacity),
                     IMSTR_START_END(s_state.last_left_fullscreen_footer_text));
       }
@@ -2058,14 +2104,18 @@ void FullscreenUI::DrawFullscreenFooter()
   if (prev_opacity < 1.0f)
   {
     const float opacity = 1.0f - prev_opacity;
+    const u32 shadow_color = MulAlpha(UIStyle.ShadowColor, opacity);
     if (!s_state.fullscreen_footer_text.empty())
     {
       const ImVec2 text_size =
         font->CalcTextSizeA(font_size, font_weight, max_width, 0.0f, IMSTR_START_END(s_state.fullscreen_footer_text));
       const ImVec2 text_pos =
         ImVec2(io.DisplaySize.x - padding.x - text_size.x, io.DisplaySize.y - font_size - padding.y);
-      dl->AddText(font, font_size, font_weight, text_pos + shadow_offset, MulAlpha(UIStyle.ShadowColor, opacity),
-                  IMSTR_START_END(s_state.fullscreen_footer_text));
+      if ((shadow_color >> IM_COL32_A_SHIFT) > 0)
+      {
+        dl->AddText(font, font_size, font_weight, text_pos + shadow_offset, MulAlpha(UIStyle.ShadowColor, opacity),
+                    IMSTR_START_END(s_state.fullscreen_footer_text));
+      }
       dl->AddText(font, font_size, font_weight, text_pos, ModAlpha(text_color, opacity),
                   IMSTR_START_END(s_state.fullscreen_footer_text));
     }
@@ -2073,8 +2123,11 @@ void FullscreenUI::DrawFullscreenFooter()
     if (!s_state.left_fullscreen_footer_text.empty())
     {
       const ImVec2 text_pos = ImVec2(padding.x, io.DisplaySize.y - font_size - padding.y);
-      dl->AddText(font, font_size, font_weight, text_pos + shadow_offset, MulAlpha(UIStyle.ShadowColor, opacity),
-                  IMSTR_START_END(s_state.left_fullscreen_footer_text));
+      if ((shadow_color >> IM_COL32_A_SHIFT) > 0)
+      {
+        dl->AddText(font, font_size, font_weight, text_pos + shadow_offset, MulAlpha(UIStyle.ShadowColor, opacity),
+                    IMSTR_START_END(s_state.left_fullscreen_footer_text));
+      }
       dl->AddText(font, font_size, font_weight, text_pos, ModAlpha(text_color, opacity),
                   IMSTR_START_END(s_state.left_fullscreen_footer_text));
     }
@@ -2502,14 +2555,21 @@ void FullscreenUI::RenderShadowedTextClipped(ImDrawList* draw_list, ImFont* font
   if (need_clipping)
   {
     ImVec4 fine_clip_rect(clip_min->x, clip_min->y, clip_max->x, clip_max->y);
-    draw_list->AddText(font, font_size, font_weight, ImVec2(pos.x + shadow_offset, pos.y + shadow_offset), shadow_color,
-                       IMSTR_START_END(text), wrap_width, &fine_clip_rect);
+    if ((shadow_color >> IM_COL32_A_SHIFT) > 0)
+    {
+      draw_list->AddText(font, font_size, font_weight, ImVec2(pos.x + shadow_offset, pos.y + shadow_offset),
+                         shadow_color, IMSTR_START_END(text), wrap_width, &fine_clip_rect);
+    }
     draw_list->AddText(font, font_size, font_weight, pos, color, IMSTR_START_END(text), wrap_width, &fine_clip_rect);
   }
   else
   {
-    draw_list->AddText(font, font_size, font_weight, ImVec2(pos.x + shadow_offset, pos.y + shadow_offset), shadow_color,
-                       IMSTR_START_END(text), wrap_width, nullptr);
+    if ((shadow_color >> IM_COL32_A_SHIFT) > 0)
+    {
+      draw_list->AddText(font, font_size, font_weight, ImVec2(pos.x + shadow_offset, pos.y + shadow_offset),
+                         shadow_color, IMSTR_START_END(text), wrap_width, nullptr);
+    }
+
     draw_list->AddText(font, font_size, font_weight, pos, color, IMSTR_START_END(text), wrap_width, nullptr);
   }
 }
@@ -3604,10 +3664,21 @@ bool FullscreenUI::NavButton(std::string_view title, bool is_active, bool enable
   bb.Min += style.FramePadding;
   bb.Max -= style.FramePadding;
 
-  RenderShadowedTextClipped(
-    UIStyle.Font, UIStyle.LargeFontSize, UIStyle.BoldFontWeight, bb.Min, bb.Max,
-    ImGui::GetColorU32(enabled ? (is_active ? ImGuiCol_Text : ImGuiCol_TextDisabled) : ImGuiCol_ButtonHovered), title,
-    &text_size, ImVec2(0.0f, 0.0f), 0.0f, &bb);
+  u32 color;
+  if (enabled)
+  {
+    if (is_active)
+      color = ImGui::GetColorU32(ImGuiCol_Text);
+    else
+      color = ImGui::GetColorU32(DarkerColor(GImGui->Style.Colors[ImGuiCol_Text], UIStyle.IsDarkTheme ? 0.6f : 1.7f));
+  }
+  else
+  {
+    color = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+  }
+
+  RenderShadowedTextClipped(UIStyle.Font, UIStyle.LargeFontSize, UIStyle.BoldFontWeight, bb.Min, bb.Max, color, title,
+                            &text_size, ImVec2(0.0f, 0.0f), 0.0f, &bb);
 
   return pressed;
 }
@@ -4060,9 +4131,9 @@ bool FullscreenUI::SplitWindowSidebarItem(std::string_view title, bool active /*
     SetMenuButtonSplitLayer(MENU_BUTTON_SPLIT_LAYER_BACKGROUND);
 
     const MenuButtonBounds bb(title, std::string_view(), std::string_view());
-    ImGui::GetWindowDrawList()->AddRectFilled(bb.frame_bb.Min, bb.frame_bb.Max,
-                                              ImGui::GetColorU32(DarkerColor(UIStyle.BackgroundColor, 0.6f)),
-                                              LayoutScale(LAYOUT_MENU_ITEM_BORDER_ROUNDING));
+    ImGui::GetWindowDrawList()->AddRectFilled(
+      bb.frame_bb.Min, bb.frame_bb.Max, ImGui::GetColorU32(DarkerColor(GImGui->Style.Colors[ImGuiCol_WindowBg], 0.6f)),
+      LayoutScale(LAYOUT_MENU_ITEM_BORDER_ROUNDING));
 
     SetMenuButtonSplitLayer(MENU_BUTTON_SPLIT_LAYER_FOREGROUND);
   }
@@ -4096,8 +4167,7 @@ bool FullscreenUI::SplitWindowSidebarItem(std::string_view title, std::string_vi
 
     const MenuButtonBounds bb(title, std::string_view(), summary);
     ImGui::GetWindowDrawList()->AddRectFilled(
-      bb.frame_bb.Min, bb.frame_bb.Max,
-      ImGui::GetColorU32(DarkerColor(ImGui::GetStyle().Colors[ImGuiCol_WindowBg], 0.6f)),
+      bb.frame_bb.Min, bb.frame_bb.Max, ImGui::GetColorU32(DarkerColor(GImGui->Style.Colors[ImGuiCol_WindowBg], 0.6f)),
       LayoutScale(LAYOUT_MENU_ITEM_BORDER_ROUNDING));
 
     SetMenuButtonSplitLayer(MENU_BUTTON_SPLIT_LAYER_FOREGROUND);
@@ -4314,8 +4384,8 @@ bool FullscreenUI::PopupDialog::BeginRender(float scaled_window_padding /* = Lay
                       LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING, LAYOUT_MENU_BUTTON_Y_PADDING));
   ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
   ImGui::PushStyleColor(ImGuiCol_PopupBg, ModAlpha(UIStyle.PopupBackgroundColor, 1.0f));
-  ImGui::PushStyleColor(ImGuiCol_ButtonActive, ModAlpha(DarkerColor(UIStyle.PopupBackgroundColor, 1.8f), 1.0f));
-  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ModAlpha(DarkerColor(UIStyle.BackgroundHighlight, 1.1f), 1.0f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, DarkerColor(UIStyle.PopupHighlight, 1.2f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, UIStyle.PopupHighlight);
   ImGui::PushStyleColor(ImGuiCol_FrameBg, UIStyle.PopupFrameBackgroundColor);
   ImGui::PushStyleColor(ImGuiCol_TitleBg, UIStyle.PrimaryDarkColor);
   ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIStyle.PrimaryColor);
@@ -5725,7 +5795,7 @@ void FullscreenUI::DrawLoadingScreen(std::string_view image, std::string_view ti
 
   if (UIStyle.BlurMenuBackground && BeginBlurBackground(dl, ImVec2(), io.DisplaySize))
   {
-    dl->AddRectFilled(ImVec2(), io.DisplaySize, ImGui::GetColorU32(ModAlpha(UIStyle.BackgroundColor, 0.9f)));
+    dl->AddRectFilled(ImVec2(), io.DisplaySize, ImGui::GetColorU32(ModAlpha(UIStyle.BackgroundColor, 1.0f)));
     EndBlurBackground(dl);
   }
   else if (VideoPresenter::HasDisplayTexture())
@@ -6353,6 +6423,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0x0c0c0c, 0xff);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0x212121, 0xf2);
     UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0x313131, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0x313131, 0xff);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0x0a0a0a, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0xb5b5b5, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0x000000, 0xff);
@@ -6378,6 +6449,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0x3b54ac, 0xff);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0x2b3760, 0xf2);
     UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0x3b54ac, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0x3b54ac, 0xff);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0x202e5a, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0xb5b5b5, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0x000000, 0xff);
@@ -6403,6 +6475,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0x484d57, 0xff);
     UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0x313131, 0xf2);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0x212121, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0x484d57, 0xff);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0x292d35, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0xb5b5b5, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0x000000, 0xff);
@@ -6428,6 +6501,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0xdc6c68, 0xff);
     UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0xe05885, 0xf2);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0xeba0b9, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0xdc6c68, 0xff);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0xffaec9, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0xe05885, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0xeba0b9, 0xff);
@@ -6441,8 +6515,8 @@ void FullscreenUI::UpdateTheme()
     UIStyle.SecondaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
     UIStyle.ToastBackgroundColor = HEX_TO_IMVEC4(0xd86a66, 0xff);
     UIStyle.ToastTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
-    UIStyle.ShadowColor = IM_COL32(100, 100, 100, 50);
-    UIStyle.BlurBackgroundWeight = 0.5f;
+    UIStyle.ShadowColor = IM_COL32(0, 0, 0, 0);
+    UIStyle.BlurBackgroundWeight = 0.25f;
     UIStyle.IsDarkTheme = false;
   }
   else if (theme == "GreenGiant")
@@ -6451,7 +6525,9 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
     UIStyle.BackgroundLineColor = HEX_TO_IMVEC4(0xf0f0f0, 0xff);
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0x876433, 0xff);
+    UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0x795A2D, 0xf2);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0xB0C400, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0x876433, 0xff);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0xD5DE2E, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0x795A2D, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0x523213, 0xff);
@@ -6465,7 +6541,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.SecondaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
     UIStyle.ToastBackgroundColor = HEX_TO_IMVEC4(0xD5DE2E, 0xff);
     UIStyle.ToastTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
-    UIStyle.ShadowColor = IM_COL32(100, 100, 100, 50);
+    UIStyle.ShadowColor = IM_COL32(0, 0, 0, 0);
     UIStyle.BlurBackgroundWeight = 0.25f;
     UIStyle.IsDarkTheme = false;
   }
@@ -6477,6 +6553,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0x2a4e8f, 0xff);
     UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0x313131, 0xf2);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0x212121, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0x2a4e8f, 0xff);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0x121212, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0x315ba6, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0x121212, 0xff);
@@ -6502,6 +6579,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0xab2720, 0xff);
     UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0x313131, 0xf2);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0x212121, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0xab2720, 0xff);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0x121212, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0xb52922, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0x000000, 0xff);
@@ -6527,6 +6605,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0xa78936, 0xff);
     UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0x341d56, 0xf2);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0x532f8a, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0xa78936, 0xff);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0x49297a, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0x653aab, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0x462876, 0xff);
@@ -6540,7 +6619,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.SecondaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
     UIStyle.ToastBackgroundColor = HEX_TO_IMVEC4(0x8e65cb, 0xff);
     UIStyle.ToastTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
-    UIStyle.ShadowColor = IM_COL32(100, 100, 100, 50);
+    UIStyle.ShadowColor = IM_COL32(0, 0, 0, 100);
     UIStyle.BlurBackgroundWeight = 0.25f;
     UIStyle.IsDarkTheme = true;
   }
@@ -6553,6 +6632,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0xe1e2e1, 0xc0);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0xd8d8d8, 0xf2);
     UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0xc8c8c8, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0xf1f2f1, 0xc0);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0x2a3e78, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0x235cd9, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0x1d2953, 0xff);
@@ -6566,8 +6646,8 @@ void FullscreenUI::UpdateTheme()
     UIStyle.SecondaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
     UIStyle.ToastBackgroundColor = HEX_TO_IMVEC4(0xf1f1f1, 0xff);
     UIStyle.ToastTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
-    UIStyle.ShadowColor = IM_COL32(100, 100, 100, 50);
-    UIStyle.BlurBackgroundWeight = 0.5f;
+    UIStyle.ShadowColor = IM_COL32(0, 0, 0, 0);
+    UIStyle.BlurBackgroundWeight = 0.25f;
     UIStyle.IsDarkTheme = false;
   }
   else
@@ -6579,6 +6659,7 @@ void FullscreenUI::UpdateTheme()
     UIStyle.BackgroundHighlight = HEX_TO_IMVEC4(0x4b4b4b, 0xc0);
     UIStyle.PopupBackgroundColor = HEX_TO_IMVEC4(0x212121, 0xf2);
     UIStyle.PopupFrameBackgroundColor = HEX_TO_IMVEC4(0x313131, 0xf2);
+    UIStyle.PopupHighlight = HEX_TO_IMVEC4(0x4b4b4b, 0xf2);
     UIStyle.PrimaryColor = HEX_TO_IMVEC4(0x2e2e2e, 0xff);
     UIStyle.PrimaryLightColor = HEX_TO_IMVEC4(0x484848, 0xff);
     UIStyle.PrimaryDarkColor = HEX_TO_IMVEC4(0x000000, 0xff);

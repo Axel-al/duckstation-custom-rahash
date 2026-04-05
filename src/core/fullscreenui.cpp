@@ -438,8 +438,15 @@ void FullscreenUI::SwitchToMainWindow(MainWindowType type)
   if (s_locals.current_main_window == type)
     return;
 
+  // avoid a race where if we shutdown with achievements up, we end up back at the pause menu
+  if (!VideoThread::HasGPUBackend() && (type == MainWindowType::PauseMenu || type >= MainWindowType::Achievements))
+  {
+    WARNING_LOG("Trying to switch to main window requiring system without one");
+    s_locals.current_main_window = MainWindowType::None;
+    type = MainWindowType::Landing;
+  }
   // windows that are actually stacked
-  if (type != MainWindowType::None && !CanCurrentMainWindowStack())
+  else if (type != MainWindowType::None && !CanCurrentMainWindowStack())
   {
     WARNING_LOG("Trying to stack incompatible window type {} on {}, ignoring", static_cast<u32>(type),
                 static_cast<u32>(s_locals.current_main_window));
@@ -876,7 +883,7 @@ void FullscreenUI::StartChangeDiscFromFile()
         if (!GameList::IsScannableFilename(path))
         {
           ShowToast(OSDMessageType::Error, {},
-                    fmt::format(FSUI_FSTR("{} is not a valid disc image."), FileSystem::GetDisplayNameFromPath(path)));
+                    fmt::format(FSUI_FSTR("{} is not a valid disc image."), Path::GetFileName(path)));
         }
         else
         {
@@ -1215,6 +1222,7 @@ void FullscreenUI::DrawShaderBackgroundCallback(const ImDrawList* parent_list, c
     static_cast<float>(Timer::ConvertValueToSeconds(Timer::GetCurrentValue() - s_locals.app_background_load_time));
 
   g_gpu_device->SetPipeline(s_locals.app_background_shader.get());
+  g_gpu_device->SetTextureSampler(0, nullptr, nullptr);
   g_gpu_device->DrawWithPushConstants(3, 0, &uniforms, sizeof(uniforms));
 }
 
@@ -1433,26 +1441,29 @@ void FullscreenUI::DrawStartGameWindow()
   {
     ResetFocusHere();
 
-    if (HorizontalMenuItem(GetUserThemeableTexture("fullscreenui/start-file.png", "fullscreenui/start-file.svg"),
-                           FSUI_VSTR("Start File"), FSUI_VSTR("Launch a game by selecting a file/disc image.")))
+    if (UserThemeableHorizontalButton("fullscreenui/start-file.png", "fullscreenui/start-file.svg",
+                                      FSUI_VSTR("Start File"),
+                                      FSUI_VSTR("Launch a game by selecting a file/disc image.")))
     {
       DoStartFile();
     }
 
-    if (HorizontalMenuItem(GetUserThemeableTexture("fullscreenui/start-disc.png", "fullscreenui/start-disc.svg"),
-                           FSUI_VSTR("Start Disc"), FSUI_VSTR("Start a game from a disc in your PC's DVD drive.")))
+    if (UserThemeableHorizontalButton("fullscreenui/start-disc.png", "fullscreenui/start-disc.svg",
+                                      FSUI_VSTR("Start Disc"),
+                                      FSUI_VSTR("Start a game from a disc in your PC's DVD drive.")))
     {
       DoStartDisc();
     }
 
-    if (HorizontalMenuItem(GetUserThemeableTexture("fullscreenui/start-bios.png", "fullscreenui/start-bios.svg"),
-                           FSUI_VSTR("Start BIOS"), FSUI_VSTR("Start the console without any disc inserted.")))
+    if (UserThemeableHorizontalButton("fullscreenui/start-bios.png", "fullscreenui/start-bios.svg",
+                                      FSUI_VSTR("Start BIOS"),
+                                      FSUI_VSTR("Start the console without any disc inserted.")))
     {
       DoStartBIOS();
     }
 
-    if (HorizontalMenuItem(GetUserThemeableTexture("fullscreenui/back-icon.png", "fullscreenui/back-icon.svg"),
-                           FSUI_VSTR("Back"), FSUI_VSTR("Return to the previous menu.")) ||
+    if (UserThemeableHorizontalButton("fullscreenui/back-icon.png", "fullscreenui/back-icon.svg", FSUI_VSTR("Back"),
+                                      FSUI_VSTR("Return to the previous menu.")) ||
         (!AreAnyDialogsOpen() && WantsToCloseMenu()))
     {
       BeginTransition([]() { SwitchToMainWindow(MainWindowType::Landing); });
@@ -1498,23 +1509,22 @@ void FullscreenUI::DrawExitWindow()
   {
     ResetFocusHere();
 
-    if (HorizontalMenuItem(GetUserThemeableTexture("fullscreenui/back-icon.png", "fullscreenui/back-icon.svg"),
-                           FSUI_VSTR("Back"), FSUI_VSTR("Return to the previous menu.")) ||
+    if (UserThemeableHorizontalButton("fullscreenui/back-icon.png", "fullscreenui/back-icon.svg", FSUI_VSTR("Back"),
+                                      FSUI_VSTR("Return to the previous menu.")) ||
         WantsToCloseMenu())
     {
       BeginTransition([]() { SwitchToMainWindow(MainWindowType::Landing); });
     }
 
-    if (HorizontalMenuItem(GetUserThemeableTexture("fullscreenui/exit.png", "fullscreenui/exit.svg"),
-                           FSUI_VSTR("Exit DuckStation"),
-                           FSUI_VSTR("Completely exits the application, returning you to your desktop.")))
+    if (UserThemeableHorizontalButton("fullscreenui/exit.png", "fullscreenui/exit.svg", FSUI_VSTR("Exit DuckStation"),
+                                      FSUI_VSTR("Completely exits the application, returning you to your desktop.")))
     {
       DoRequestExit();
     }
 
-    if (HorizontalMenuItem(GetUserThemeableTexture("fullscreenui/desktop-mode.png", "fullscreenui/desktop-mode.svg"),
-                           FSUI_VSTR("Desktop Mode"),
-                           FSUI_VSTR("Exits Big Picture mode, returning to the desktop interface.")))
+    if (UserThemeableHorizontalButton("fullscreenui/desktop-mode.png", "fullscreenui/desktop-mode.svg",
+                                      FSUI_VSTR("Desktop Mode"),
+                                      FSUI_VSTR("Exits Big Picture mode, returning to the desktop interface.")))
     {
       DoDesktopMode();
     }
@@ -1538,7 +1548,7 @@ float FullscreenUI::GetBackgroundAlpha()
     }
     else
     {
-      return 0.90f;
+      return UIStyle.IsDarkTheme ? 0.90f : 0.92f;
     }
   }
   else
@@ -2103,9 +2113,9 @@ void FullscreenUI::DrawSaveStateSelector()
           // avoid closing while drawing
           pressed_entry = &entry;
         }
-        else if (hovered &&
-                 (ImGui::IsItemClicked(ImGuiMouseButton_Right) ||
-                  ImGui::IsKeyPressed(ImGuiKey_NavGamepadContextMenu, false) || ImGui::IsKeyPressed(ImGuiKey_F1, false)))
+        else if (hovered && (ImGui::IsItemClicked(ImGuiMouseButton_Right) ||
+                             ImGui::IsKeyPressed(ImGuiKey_NavGamepadContextMenu, false) ||
+                             ImGui::IsKeyPressed(ImGuiKey_F1, false)))
         {
           CancelPendingMenuClose();
 

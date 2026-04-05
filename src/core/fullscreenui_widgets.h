@@ -86,6 +86,7 @@ struct ALIGN_TO_CACHE_LINE UIStyles
   ImVec4 BackgroundHighlight;
   ImVec4 PopupBackgroundColor;
   ImVec4 PopupFrameBackgroundColor;
+  ImVec4 PopupHighlight;
   ImVec4 DisabledColor;
   ImVec4 PrimaryColor;
   ImVec4 PrimaryLightColor;
@@ -196,6 +197,13 @@ ALWAYS_INLINE std::string_view RemoveHash(std::string_view s)
   const std::string_view::size_type pos = s.find("##");
   return (pos != std::string_view::npos) ? s.substr(0, pos) : s;
 }
+
+#if 0
+ALWAYS_INLINE ImVec2 ApplyPivot(const ImVec2& pos, const ImVec2& size, const ImVec2& pivot)
+{
+  return ImVec2(pos.x - size.x * pivot.x, pos.y - size.y * pivot.y);
+}
+#endif
 
 /// Localization support.
 #define FSUI_TR_CONTEXT std::string_view("FullscreenUI")
@@ -361,6 +369,7 @@ bool BeginFullscreenWindow(const ImVec2& position, const ImVec2& size, const cha
                            const ImVec2& padding = ImVec2(), ImGuiWindowFlags flags = 0, bool blur = false);
 void EndFullscreenWindow(bool allow_wrap_x = false, bool allow_wrap_y = true);
 void SetWindowNavWrapping(bool allow_wrap_x = false, bool allow_wrap_y = true);
+bool BeginBlurWindow(const char* name, bool* p_open = nullptr, ImGuiWindowFlags flags = 0, bool blur = true);
 
 bool IsGamepadInputSource();
 std::string_view GetControllerIconMapping(std::string_view icon);
