@@ -6,6 +6,7 @@
     <ClCompile Include="achievementsettingswidget.cpp" />
     <ClCompile Include="achievementlogindialog.cpp" />
     <ClCompile Include="advancedsettingswidget.cpp" />
+    <ClCompile Include="asyncpixmaploader.cpp" />
     <ClCompile Include="audiosettingswidget.cpp" />
     <ClCompile Include="autoupdaterdialog.cpp" />
     <ClCompile Include="biossettingswidget.cpp" />
@@ -17,10 +18,10 @@
     <ClCompile Include="controllersettingswindow.cpp" />
     <ClCompile Include="coverdownloadwindow.cpp" />
     <ClCompile Include="debuggercodeview.cpp" />
+    <ClCompile Include="debuggingsettingswidget.cpp" />
     <ClCompile Include="emulationsettingswidget.cpp" />
     <ClCompile Include="debuggermodels.cpp" />
     <ClCompile Include="debuggerwindow.cpp" />
-    <ClCompile Include="foldersettingswidget.cpp" />
     <ClCompile Include="gamecheatsettingswidget.cpp" />
     <ClCompile Include="gamepatchsettingswidget.cpp" />
     <ClCompile Include="interfacesettingswidget.cpp" />
@@ -35,7 +36,6 @@
     <ClCompile Include="memoryviewwidget.cpp" />
     <ClCompile Include="displaywidget.cpp" />
     <ClCompile Include="gamelistsettingswidget.cpp" />
-    <ClCompile Include="gamelistrefreshthread.cpp" />
     <ClCompile Include="gamelistwidget.cpp" />
     <ClCompile Include="gamesummarywidget.cpp" />
     <ClCompile Include="mainwindow.cpp" />
@@ -83,6 +83,7 @@
     <QtMoc Include="controllersettingswindow.h" />
     <QtMoc Include="colorpickerbutton.h" />
     <QtMoc Include="capturesettingswidget.h" />
+    <QtMoc Include="asyncpixmaploader.h" />
     <ClInclude Include="controllersettingwidgetbinder.h" />
     <QtMoc Include="memoryeditorwindow.h" />
     <QtMoc Include="memoryviewwidget.h" />
@@ -94,6 +95,7 @@
     <QtMoc Include="isobrowserwindow.h" />
     <QtMoc Include="debuggercodeview.h" />
     <QtMoc Include="osdsettingswidget.h" />
+    <QtMoc Include="debuggingsettingswidget.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="qtwindowinfo.h" />
     <ClInclude Include="resource.h" />
@@ -102,13 +104,11 @@
     <QtMoc Include="consolesettingswidget.h" />
     <QtMoc Include="emulationsettingswidget.h" />
     <QtMoc Include="gamelistsettingswidget.h" />
-    <QtMoc Include="gamelistrefreshthread.h" />
     <QtMoc Include="gamelistwidget.h" />
     <QtMoc Include="gamesummarywidget.h" />
     <QtMoc Include="postprocessingsettingswidget.h" />
     <QtMoc Include="mainwindow.h" />
     <QtMoc Include="qthost.h" />
-    <QtMoc Include="foldersettingswidget.h" />
     <ClInclude Include="qtutils.h" />
     <QtMoc Include="settingswindow.h" />
   </ItemGroup>
@@ -204,9 +204,6 @@
       <FileType>Document</FileType>
     </QtUi>
     <QtUi Include="gamesummarywidget.ui">
-      <FileType>Document</FileType>
-    </QtUi>
-    <QtUi Include="foldersettingswidget.ui">
       <FileType>Document</FileType>
     </QtUi>
     <QtUi Include="coverdownloadwindow.ui">
@@ -327,6 +324,9 @@
       <FileType>Document</FileType>
     </QtUi>
     <QtUi Include="osdsettingswidget.ui">
+      <FileType>Document</FileType>
+    </QtUi>
+    <QtUi Include="debuggingsettingswidget.ui">
       <FileType>Document</FileType>
     </QtUi>
     <None Include="translations\duckstation-qt_es-es.ts" />

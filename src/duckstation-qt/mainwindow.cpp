@@ -2537,9 +2537,9 @@ void MainWindow::connectSignals()
   connect(m_ui.actionPostProcessingSettings, &QAction::triggered, [this]() { doSettings("Post-Processing"); });
   connect(m_ui.actionAudioSettings, &QAction::triggered, [this]() { doSettings("Audio"); });
   connect(m_ui.actionAchievementSettings, &QAction::triggered, [this]() { doSettings("Achievements"); });
-  connect(m_ui.actionFolderSettings, &QAction::triggered, [this]() { doSettings("Folders"); });
   connect(m_ui.actionCaptureSettings, &QAction::triggered, [this]() { doSettings("Capture"); });
   connect(m_ui.actionAdvancedSettings, &QAction::triggered, [this]() { doSettings("Advanced"); });
+  connect(m_ui.actionDebuggingSettings, &QAction::triggered, [this]() { doSettings("Debugging"); });
   connect(m_ui.actionControllerProfiles, &QAction::triggered, this, &MainWindow::onSettingsControllerProfilesTriggered);
   connect(m_ui.actionViewToolbar, &QAction::triggered, this, &MainWindow::onViewToolbarActionTriggered);
   connect(m_ui.actionViewLockToolbar, &QAction::triggered, this, &MainWindow::onViewToolbarLockActionTriggered);
@@ -2785,7 +2785,10 @@ void MainWindow::restoreRenderWindowGeometryFromConfig()
 SettingsWindow* MainWindow::getSettingsWindow()
 {
   if (!m_settings_window)
+  {
     m_settings_window = new SettingsWindow();
+    connect(m_settings_window, &SettingsWindow::debugOptionsVisibiltyChanged, this, &MainWindow::updateDebugMenuVisibility);
+  }
 
   return m_settings_window;
 }
@@ -3011,6 +3014,7 @@ void MainWindow::updateDebugMenuVisibility()
 {
   const bool visible = QtHost::ShouldShowDebugOptions();
   m_ui.menuDebug->menuAction()->setVisible(visible);
+  m_ui.actionDebuggingSettings->setVisible(visible);
 }
 
 void MainWindow::refreshGameList(bool invalidate_cache)

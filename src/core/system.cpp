@@ -48,6 +48,7 @@
 #include "util/cd_image.h"
 #include "util/compress_helpers.h"
 #include "util/gpu_device.h"
+#include "util/http_cache.h"
 #include "util/imgui_manager.h"
 #include "util/ini_settings_interface.h"
 #include "util/input_manager.h"
@@ -581,6 +582,8 @@ void System::CoreThreadShutdown()
 
   InputManager::CloseSources();
 
+  HTTPCache::Shutdown();
+
   s_state.core_thread_handle = {};
 
 #ifdef _WIN32
@@ -611,6 +614,8 @@ void System::IdlePollUpdate()
 #ifdef ENABLE_DISCORD_PRESENCE
   PollDiscordPresence();
 #endif
+
+  HTTPCache::PollRequests();
 
   Achievements::IdleUpdate();
 
@@ -2273,6 +2278,8 @@ void System::FrameDone()
     SPU::GeneratePendingSamples();
 
     Cheats::ApplyFrameEndCodes();
+
+    HTTPCache::PollRequests();
 
     if (Achievements::IsActive())
       Achievements::FrameUpdate();
@@ -6384,7 +6391,7 @@ std::string System::GetImageForLoadingScreen(const std::string& game_path,
 
     if (fallback_to_achievement_game_icon && entry->achievements_game_id != 0)
     {
-      path = GameList::GetAchievementGameBadgePath(entry->achievements_game_id);
+      path = GameList::GetAchievementGameBadgeURL(entry->achievements_game_id);
       if (!path.empty())
         return path;
     }
@@ -6573,7 +6580,7 @@ void System::UpdateRichPresence(bool update_session_time)
   if (Achievements::HasRichPresence())
     rp.state = (state_string = StringUtil::Ellipsise(Achievements::GetRichPresenceString(), 128)).c_str();
 
-  if (const std::string& icon_url = Achievements::GetGameIconURL(); !icon_url.empty())
+  if (const std::string& icon_url = Achievements::GetCurrentGameIconURL(); !icon_url.empty())
     rp.largeImageKey = icon_url.c_str();
 
   dyn_libs::Discord_UpdatePresence(&rp);

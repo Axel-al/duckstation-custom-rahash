@@ -17,6 +17,8 @@ set(SRCS
   advancedsettingswidget.cpp
   advancedsettingswidget.h
   advancedsettingswidget.ui
+  asyncpixmaploader.cpp
+  asyncpixmaploader.h
   audiosettingswidget.cpp
   audiosettingswidget.h
   audiosettingswidget.ui
@@ -64,6 +66,9 @@ set(SRCS
   debuggerwindow.cpp
   debuggerwindow.h
   debuggerwindow.ui
+  debuggingsettingswidget.cpp
+  debuggingsettingswidget.h
+  debuggingsettingswidget.ui
   displaywidget.cpp
   displaywidget.h
   editgameserialdialog.ui
@@ -71,9 +76,6 @@ set(SRCS
   emulationsettingswidget.cpp
   emulationsettingswidget.h
   emulationsettingswidget.ui
-  foldersettingswidget.cpp
-  foldersettingswidget.h
-  foldersettingswidget.ui
   gamecheatcodechoiceeditordialog.ui
   gamecheatcodeeditordialog.ui
   gamecheatsettingswidget.cpp
@@ -83,8 +85,6 @@ set(SRCS
   gamepatchsettingswidget.cpp
   gamepatchsettingswidget.h
   gamepatchsettingswidget.ui
-  gamelistrefreshthread.cpp
-  gamelistrefreshthread.h
   gamelistsettingswidget.cpp
   gamelistsettingswidget.h
   gamelistsettingswidget.ui

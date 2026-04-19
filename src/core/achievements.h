@@ -104,9 +104,6 @@ void FrameUpdate();
 /// Called when the system is paused, because FrameUpdate() won't be getting called.
 void IdleUpdate();
 
-/// Returns true if idle updates are necessary (e.g. outstanding requests).
-bool NeedsIdleUpdate();
-
 /// Saves/loads state.
 bool DoState(StateWrapper& sw);
 
@@ -156,17 +153,14 @@ bool HasRichPresence();
 const std::string& GetRichPresenceString();
 
 /// Returns the URL for the current icon of the game
-const std::string& GetGameIconURL();
-
-/// Returns the path for the current icon of the game
-const std::string& GetGameIconPath();
+const std::string& GetCurrentGameIconURL();
 
 /// Returns the RetroAchievements title for the current game.
 /// Should be called with the lock held.
-const std::string& GetGameTitle();
+const std::string& GetCurrentGameTitle();
 
 /// Returns the path for the game that is current hashed/running.
-const std::string& GetGamePath();
+const std::string& GetCurrentGamePath();
 
 /// Returns true if the user has been successfully logged in.
 bool IsLoggedIn();
@@ -175,18 +169,18 @@ bool IsLoggedIn();
 bool IsLoggedInOrLoggingIn();
 
 /// Returns the logged-in user name.
-const char* GetLoggedInUserName();
+const std::string& GetLoggedInUserName();
 
 /// Returns the path to the user's profile avatar.
 /// Should be called with the lock held.
-const std::string& GetLoggedInUserBadgePath();
+const std::string& GetLoggedInUserIconURL();
 
 /// Returns a summary of the user's points.
 /// Should be called with the lock held.
 SmallString GetLoggedInUserPointsSummary();
 
-/// Returns the path to the local cache for the specified badge name.
-std::string GetGameBadgePath(std::string_view badge_name);
+/// Returns the URL for the specified game icon.
+std::string GetGameIconURL(const char* badge_name);
 
 /// Downloads game icons from RetroAchievements for all games that have an achievements_game_id.
 /// This fetches the game badge images that are normally downloaded when a game is opened.
@@ -200,6 +194,7 @@ u32 GetPendingUnlockCount();
 
 /// The name of the RetroAchievements icon, which can be used in notifications.
 extern const char* const RA_LOGO_ICON_NAME;
+extern const char* const RA_LOGO_SVG_ICON_NAME;
 
 } // namespace Achievements
 

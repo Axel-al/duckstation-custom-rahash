@@ -14,6 +14,7 @@
 #include "util/animated_image.h"
 #include "util/cd_image.h"
 #include "util/elf_file.h"
+#include "util/http_cache.h"
 #include "util/http_downloader.h"
 #include "util/image.h"
 #include "util/ini_settings_interface.h"
@@ -591,8 +592,7 @@ void GameList::ScanDirectory(const std::string& path, bool recursive, bool only_
     return;
 
   progress->PushState();
-  progress->SetProgressRange(static_cast<u32>(files.size()));
-  progress->SetProgressValue(0);
+  progress->SetState(0, static_cast<u32>(files.size()));
 
   u32 files_scanned = 0;
   for (FILESYSTEM_FIND_DATA& ffd : files)
@@ -1184,8 +1184,7 @@ void GameList::Refresh(bool invalidate_cache, bool only_cache, ProgressCallback*
 
   if (!dirs.empty() || !recursive_dirs.empty())
   {
-    progress->SetProgressRange(static_cast<u32>(dirs.size() + recursive_dirs.size()));
-    progress->SetProgressValue(0);
+    progress->SetState(0, static_cast<u32>(dirs.size() + recursive_dirs.size()));
 
     // we manually count it here, because otherwise pop state updates it itself
     int directory_counter = 0;
@@ -1910,15 +1909,8 @@ bool GameList::DownloadCovers(const std::vector<std::string>& url_templates, boo
     return false;
   }
 
-  std::unique_ptr<HTTPDownloader> downloader(HTTPDownloader::Create(Core::GetHTTPUserAgent(), error));
-  if (!downloader)
-  {
-    Error::AddPrefix(error, "Failed to create HTTP downloader: ");
-    return false;
-  }
-
   progress->SetCancellable(true);
-  progress->SetProgressRange(static_cast<u32>(download_urls.size()));
+  progress->SetState(0, static_cast<u32>(download_urls.size()));
 
   for (auto& [entry_path, url] : download_urls)
   {
@@ -1940,44 +1932,47 @@ bool GameList::DownloadCovers(const std::vector<std::string>& url_templates, boo
 
     // we could actually do a few in parallel here...
     std::string filename = Path::URLDecode(url);
-    downloader->CreateRequest(std::move(url), [use_serial, &save_callback, entry_path = std::move(entry_path),
-                                               filename = std::move(filename)](s32 status_code, const Error& error,
-                                                                               const std::string& content_type,
-                                                                               HTTPDownloader::Request::Data data) {
-      if (status_code != HTTPDownloader::HTTP_STATUS_OK || data.empty())
-      {
-        ERROR_LOG("Download for {} failed: {}", Path::GetFileName(filename), error.GetDescription());
-        return;
-      }
+    if (const auto downloader = HTTPCache::GetDownloader(error))
+    {
+      downloader->CreateRequest(std::move(url), [use_serial, &save_callback, entry_path = std::move(entry_path),
+                                                 filename = std::move(filename)](s32 status_code, const Error& error,
+                                                                                 const std::string& content_type,
+                                                                                 HTTPDownloader::Request::Data data) {
+        if (status_code != HTTPDownloader::HTTP_STATUS_OK || data.empty())
+        {
+          ERROR_LOG("Download for {} failed: {}", Path::GetFileName(filename), error.GetDescription());
+          return;
+        }
 
-      std::unique_lock lock(s_state.mutex);
-      const GameList::Entry* entry = GetEntryForPath(entry_path);
-      if (!entry || !GetCoverImagePathForEntry(entry).empty())
-        return;
+        std::unique_lock lock(s_state.mutex);
+        const GameList::Entry* entry = GetEntryForPath(entry_path);
+        if (!entry || !GetCoverImagePathForEntry(entry).empty())
+          return;
 
-      // prefer the content type from the response for the extension
-      // otherwise, if it's missing, and the request didn't have an extension.. fall back to jpegs.
-      std::string template_filename;
-      std::string content_type_extension(HTTPDownloader::GetExtensionForContentType(content_type));
+        // prefer the content type from the response for the extension
+        // otherwise, if it's missing, and the request didn't have an extension.. fall back to jpegs.
+        std::string template_filename;
+        std::string content_type_extension(HTTPDownloader::GetExtensionForContentType(content_type));
 
-      // don't treat the domain name as an extension..
-      const std::string::size_type last_slash = filename.find('/');
-      const std::string::size_type last_dot = filename.find('.');
-      if (!content_type_extension.empty())
-        template_filename = fmt::format("cover.{}", content_type_extension);
-      else if (last_slash != std::string::npos && last_dot != std::string::npos && last_dot > last_slash)
-        template_filename = Path::GetFileName(filename);
-      else
-        template_filename = "cover.jpg";
+        // don't treat the domain name as an extension..
+        const std::string::size_type last_slash = filename.find('/');
+        const std::string::size_type last_dot = filename.find('.');
+        if (!content_type_extension.empty())
+          template_filename = fmt::format("cover.{}", content_type_extension);
+        else if (last_slash != std::string::npos && last_dot != std::string::npos && last_dot > last_slash)
+          template_filename = Path::GetFileName(filename);
+        else
+          template_filename = "cover.jpg";
 
-      std::string write_path(GetNewCoverImagePathForEntry(entry, template_filename.c_str(), use_serial));
-      if (write_path.empty())
-        return;
+        std::string write_path(GetNewCoverImagePathForEntry(entry, template_filename.c_str(), use_serial));
+        if (write_path.empty())
+          return;
 
-      if (FileSystem::WriteBinaryFile(write_path.c_str(), data.data(), data.size()) && save_callback)
-        save_callback(entry, std::move(write_path));
-    });
-    downloader->WaitForAllRequests();
+        if (FileSystem::WriteBinaryFile(write_path.c_str(), data.data(), data.size()) && save_callback)
+          save_callback(entry, std::move(write_path));
+      });
+    }
+    HTTPCache::WaitForAllRequests();
     progress->IncrementProgressValue();
   }
 
@@ -2304,7 +2299,7 @@ std::string GameList::GetGameIconPath(std::string_view custom_title, std::string
   std::string fallback_path;
   if (achievements_game_id != 0)
   {
-    fallback_path = GetAchievementGameBadgePath(achievements_game_id);
+    fallback_path = GetAchievementGameBadgeURL(achievements_game_id);
     if (!fallback_path.empty() && PreferAchievementGameBadgesForIcons())
       return (ret = std::move(fallback_path));
   }
@@ -2450,11 +2445,9 @@ std::string GameList::GetAchievementGameBadgeCachePath()
   return Path::Combine(EmuFolders::Cache, "achievement_game_badges.cache");
 }
 
-std::string GameList::GetAchievementGameBadgePath(u32 game_id)
+std::string GameList::GetAchievementGameBadgeURL(u32 game_id)
 {
   LoadAchievementGameBadges();
-
-  std::string ret;
 
   const auto iter =
     std::lower_bound(s_state.achievement_game_id_badges.begin(), s_state.achievement_game_id_badges.end(), game_id,
@@ -2463,14 +2456,10 @@ std::string GameList::GetAchievementGameBadgePath(u32 game_id)
   {
     const std::string_view badge_name = s_state.achievement_game_badge_names.GetString(iter->second);
     if (!badge_name.empty())
-    {
-      ret = Achievements::GetGameBadgePath(badge_name);
-      if (!FileSystem::FileExists(ret.c_str()))
-        ret.clear();
-    }
+      return Achievements::GetGameIconURL(TinyString(badge_name).c_str());
   }
 
-  return ret;
+  return {};
 }
 
 void GameList::LoadAchievementGameBadges()

@@ -50,6 +50,7 @@
 
 #include "util/audio_stream.h"
 #include "util/cd_image.h"
+#include "util/http_cache.h"
 #include "util/http_downloader.h"
 #include "util/imgui_manager.h"
 #include "util/ini_settings_interface.h"
@@ -132,6 +133,7 @@ static QString GetAppIconPath();
 static bool LoadResources(Error* error);
 static void SaveSettings();
 static bool RunSetupWizard();
+static void ApplyMigrations();
 static void UpdateFontOrder(std::string_view language);
 static void UpdateApplicationLocale(std::string_view language);
 static std::string_view GetSystemLanguage();
@@ -740,11 +742,11 @@ void QtHost::DownloadFile(QWidget* parent, std::string url, std::string path,
     [url = std::move(url), path = std::move(path),
      completion_callback = std::move(completion_callback)](ProgressCallback* const progress) mutable {
       Error error;
-      std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Core::GetHTTPUserAgent(), &error);
-      bool result;
-      if ((result = static_cast<bool>(http)))
+      bool result = false;
+      if (const auto downloader = HTTPCache::GetDownloader(&error))
       {
-        http->CreateRequest(
+        result = true;
+        downloader->CreateRequest(
           std::move(url),
           [&result, &error, &path](s32 status_code, const Error& http_error, const std::string&,
                                    std::vector<u8> hdata) {
@@ -762,10 +764,10 @@ void QtHost::DownloadFile(QWidget* parent, std::string url, std::string path,
             result = FileSystem::WriteBinaryFile(path.c_str(), hdata, &error);
           },
           progress);
-
-        // Block until completion.
-        http->WaitForAllRequests();
       }
+
+      // Block until completion.
+      HTTPCache::WaitForAllRequests();
 
       QtAsyncTaskWithProgressDialog::CompletionCallback ret;
       if (completion_callback)
@@ -908,6 +910,45 @@ void Host::OnSettingsResetToDefault(bool host, bool system, bool controller)
 void Host::RequestResizeHostDisplay(s32 new_window_width, s32 new_window_height)
 {
   emit g_core_thread->onResizeRenderWindowRequested(new_window_width, new_window_height);
+}
+
+void QtHost::ApplyMigrations()
+{
+  const std::string achievement_icons_directory = Path::Combine(EmuFolders::Cache, "achievement_images");
+  if (FileSystem::DirectoryExists(achievement_icons_directory.c_str()))
+  {
+    Error error;
+
+    // If it's empty, just delete it.
+    if (FileSystem::IsDirectoryEmpty(achievement_icons_directory.c_str()))
+    {
+      if (!FileSystem::DeleteDirectory(achievement_icons_directory.c_str(), &error))
+      {
+        QMessageBox::critical(nullptr, "Error"_L1,
+                              QString::fromStdString(fmt::format(
+                                "Failed to delete empty achievement icons directory: {}", error.GetDescription())));
+      }
+    }
+    else
+    {
+      QMessageBox mb(
+        QMessageBox::Question, "DuckStation"_L1,
+        "DuckStation has migrated to using an archive for caching achievement icons, which is significantly more "
+        "efficient and does not create thousands of files.\n\nThe old directory of achievement icons is no "
+        "longer needed and can be deleted.\n\nDo you want to delete the old achievement icons cache now?"_L1,
+        QMessageBox::Yes | QMessageBox::No);
+      mb.setWindowIcon(GetAppIcon());
+      if (mb.exec() == QMessageBox::Yes)
+      {
+        if (!FileSystem::RecursiveDeleteDirectory(achievement_icons_directory.c_str(), &error))
+        {
+          QMessageBox::critical(nullptr, "Error"_L1,
+                                QString::fromStdString(fmt::format(
+                                  "Failed to delete old achievement icons directory: {}", error.GetDescription())));
+        }
+      }
+    }
+  }
 }
 
 void CoreThread::applySettings(bool display_osd_messages /* = false */)
@@ -3640,6 +3681,9 @@ int main(int argc, char* argv[])
 
   // Build warning.
   AutoUpdaterDialog::warnAboutUnofficialBuild();
+
+  // Setting/folder migrations.
+  QtHost::ApplyMigrations();
 
   // Create core thread object, but don't start it yet. That way the main window can connect to it,
   // and ensures that no signals are lost. Then we create and connect the main window.

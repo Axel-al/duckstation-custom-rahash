@@ -31,6 +31,7 @@ add_library(common
   heterogeneous_containers.h
   layered_settings_interface.cpp
   layered_settings_interface.h
+  locked_ptr.h
   log.cpp
   log.h
   log_channels.h
@@ -39,6 +40,7 @@ add_library(common
   md5_digest.cpp
   md5_digest.h
   minizip_helpers.h
+  optional_with_status.h
   path.h
   perf_scope.cpp
   perf_scope.h
