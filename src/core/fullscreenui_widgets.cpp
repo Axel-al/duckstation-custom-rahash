@@ -245,7 +245,10 @@ public:
   DropdownDialog();
   ~DropdownDialog();
 
-  void Open(DropdownDialogOptions options, DropdownDialogCallback callback, float min_width);
+  std::string_view GetHiddenTitle() const;
+
+  void Open(std::string_view hidden_title, DropdownDialogOptions options, DropdownDialogCallback callback,
+            float min_width);
   void ClearState();
   void SetAnchorBounds(const ImRect& value_bb, const ImRect& frame_bb);
 
@@ -2331,28 +2334,31 @@ void FullscreenUI::BeginMenuButtons(u32 num_items /* = 0 */, float y_align /* = 
                                     float y_padding /* = LAYOUT_MENU_BUTTON_Y_PADDING */, float x_spacing /* = 0.0f */,
                                     float y_spacing /* = LAYOUT_MENU_BUTTON_SPACING */)
 {
-  // If we're scrolling up and down, it's possible that the first menu item won't be enabled.
-  // If so, track when the scroll happens, and if we moved to a new ID. If not, scroll the parent window.
-  if (GImGui->NavMoveDir != ImGuiDir_None)
+  if (ImGui::IsWindowFocused())
   {
-    s_state.has_pending_nav_move = static_cast<s8>(GImGui->NavMoveDir);
-  }
-  else if (s_state.has_pending_nav_move != ImGuiDir_None)
-  {
-    if (GImGui->NavJustMovedToId == 0)
+    // If we're scrolling up and down, it's possible that the first menu item won't be enabled.
+    // If so, track when the scroll happens, and if we moved to a new ID. If not, scroll the parent window.
+    if (GImGui->NavMoveDir != ImGuiDir_None)
     {
-      if (s_state.has_pending_nav_move == ImGuiDir_Up)
-      {
-        ImGui::SetScrollY(std::max(ImGui::GetScrollY() - MenuButtonBounds::GetSingleLineHeight(y_padding), 0.0f));
-      }
-      else if (s_state.has_pending_nav_move == ImGuiDir_Down)
-      {
-        ImGui::SetScrollY(
-          std::min(ImGui::GetScrollY() + MenuButtonBounds::GetSingleLineHeight(y_padding), ImGui::GetScrollMaxY()));
-      }
+      s_state.has_pending_nav_move = static_cast<s8>(GImGui->NavMoveDir);
     }
+    else if (s_state.has_pending_nav_move != ImGuiDir_None)
+    {
+      if (GImGui->NavJustMovedToId == 0)
+      {
+        if (s_state.has_pending_nav_move == ImGuiDir_Up)
+        {
+          ImGui::SetScrollY(std::max(ImGui::GetScrollY() - MenuButtonBounds::GetSingleLineHeight(y_padding), 0.0f));
+        }
+        else if (s_state.has_pending_nav_move == ImGuiDir_Down)
+        {
+          ImGui::SetScrollY(
+            std::min(ImGui::GetScrollY() + MenuButtonBounds::GetSingleLineHeight(y_padding), ImGui::GetScrollMaxY()));
+        }
+      }
 
-    s_state.has_pending_nav_move = ImGuiDir_None;
+      s_state.has_pending_nav_move = ImGuiDir_None;
+    }
   }
 
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(x_padding, y_padding));
@@ -2695,7 +2701,7 @@ void FullscreenUI::MenuButtonBounds::CalcBB()
 
   if (summary_size.x > 0.0f)
   {
-    const float summary_start_y = pos.y + std::max(title_size.y, value_size.y) + summary_spacing;
+    const float summary_start_y = pos.y + title_size.y + summary_spacing;
     summary_bb =
       ImRect(ImVec2(pos.x, summary_start_y), ImVec2(pos.x + summary_size.x, summary_start_y + summary_size.y));
   }
@@ -3664,6 +3670,14 @@ bool FullscreenUI::MenuActionButton(std::string_view title, std::string_view sum
   bool pressed = MenuButtonFrame(title, enabled, bb.frame_bb, &visible, &hovered);
   if (!visible)
     return false;
+
+  if (!hovered && dropdown_icon && s_state.dropdown_dialog.IsOpen() &&
+      s_state.dropdown_dialog.GetHiddenTitle() == title)
+  {
+    ImGui::RenderFrame(bb.frame_bb.Min, bb.frame_bb.Max,
+                       ImGui::GetColorU32(DarkerColor(UIStyle.BackgroundColor, UIStyle.IsDarkTheme ? 1.4f : 0.2f)),
+                       false, LayoutScale(LAYOUT_MENU_ITEM_BORDER_ROUNDING));
+  }
 
   const ImVec4& color = ImGui::GetStyle().Colors[enabled ? ImGuiCol_Text : ImGuiCol_TextDisabled];
 
@@ -5083,7 +5097,17 @@ FullscreenUI::DropdownDialog::DropdownDialog() = default;
 
 FullscreenUI::DropdownDialog::~DropdownDialog() = default;
 
-void FullscreenUI::DropdownDialog::Open(DropdownDialogOptions options, DropdownDialogCallback callback, float min_width)
+std::string_view FullscreenUI::DropdownDialog::GetHiddenTitle() const
+{
+  const size_t chop_length = 18; // length of "##dropdown_dialog_"
+  if (m_title.length() < chop_length) [[unlikely]]
+    return {};
+
+  return std::string_view(m_title).substr(chop_length);
+}
+
+void FullscreenUI::DropdownDialog::Open(std::string_view hidden_title, DropdownDialogOptions options,
+                                        DropdownDialogCallback callback, float min_width)
 {
   m_options = std::move(options);
   m_callback = std::move(callback);
@@ -5149,7 +5173,7 @@ void FullscreenUI::DropdownDialog::Open(DropdownDialogOptions options, DropdownD
     m_reverse_animation = false;
   }
 
-  SetTitleAndOpen("##dropdown_dialog");
+  SetTitleAndOpen(fmt::format("##dropdown_dialog_{}", hidden_title));
 }
 
 void FullscreenUI::DropdownDialog::ClearState()
@@ -5246,10 +5270,15 @@ bool FullscreenUI::IsDropdownDialogOpen()
   return s_state.dropdown_dialog.IsOpen();
 }
 
-void FullscreenUI::OpenDropdownDialog(DropdownDialogOptions options, DropdownDialogCallback callback,
-                                      float min_width /* = 0.0f */)
+std::string_view FullscreenUI::GetDropdownDialogHiddenTitle()
 {
-  s_state.dropdown_dialog.Open(std::move(options), std::move(callback), min_width);
+  return s_state.dropdown_dialog.GetHiddenTitle();
+}
+
+void FullscreenUI::OpenDropdownDialog(std::string_view hidden_title, DropdownDialogOptions options,
+                                      DropdownDialogCallback callback, float min_width /* = 0.0f */)
+{
+  s_state.dropdown_dialog.Open(hidden_title, std::move(options), std::move(callback), min_width);
 }
 
 void FullscreenUI::CloseDropdownDialog()
@@ -5787,6 +5816,21 @@ std::unique_ptr<ProgressCallbackWithPrompt> FullscreenUI::OpenModalProgressDialo
   return s_state.progress_dialog.GetProgressCallback(std::move(title), window_unscaled_width);
 }
 
+bool FullscreenUI::AreAnyWidgetsDialogOpen()
+{
+  return (s_state.choice_dialog.IsOpen() || s_state.dropdown_dialog.IsOpen() || s_state.file_selector_dialog.IsOpen() ||
+          s_state.input_string_dialog.IsOpen() || s_state.fixed_popup_dialog.IsOpen() ||
+          s_state.progress_dialog.IsOpen() || s_state.message_dialog.IsOpen());
+}
+
+bool FullscreenUI::AreAnyWidgetsDialogInteractable()
+{
+  return (s_state.choice_dialog.IsInteractable() || s_state.dropdown_dialog.IsInteractable() ||
+          s_state.file_selector_dialog.IsInteractable() || s_state.input_string_dialog.IsInteractable() ||
+          s_state.fixed_popup_dialog.IsInteractable() || s_state.progress_dialog.IsInteractable() ||
+          s_state.message_dialog.IsInteractable());
+}
+
 ImGuiID FullscreenUI::GetBackgroundProgressID(std::string_view str_id)
 {
   return ImHashStr(str_id.data(), str_id.length());
@@ -5979,6 +6023,16 @@ void FullscreenUI::RenderLoadingScreen(std::string_view image, std::string_view 
   DrawLoadingScreen(image, title, caption, progress_min, progress_max, progress_value, false);
 
   ImGuiManager::CreateDrawLists();
+
+  if (s_state.blur_active && !s_state.blur_valid)
+  {
+    GPUTexture* const blur_target = GetBlurRenderTexture();
+    if (blur_target)
+    {
+      VideoPresenter::RenderDisplay(blur_target, blur_target->GetSizeVec(), false, true);
+      RenderBlur(blur_target);
+    }
+  }
 
   GPUSwapChain* swap_chain = g_gpu_device->GetMainSwapChain();
   if (g_gpu_device->BeginPresent(swap_chain) == GPUPresentResult::OK)

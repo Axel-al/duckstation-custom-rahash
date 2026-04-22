@@ -195,6 +195,9 @@
     <None Include="translations\duckstation-qt_sv.ts">
       <Filter>translations</Filter>
     </None>
+    <None Include="translations\duckstation-qt_az.ts">
+      <Filter>translations</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <QtTs Include="translations\duckstation-qt_de.ts">
@@ -239,5 +242,8 @@
     <QtTs Include="translations\duckstation-qt_ko.ts">
       <Filter>translations</Filter>
     </QtTs>
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="duckstation-qt.manifest" />
   </ItemGroup>
 </Project>

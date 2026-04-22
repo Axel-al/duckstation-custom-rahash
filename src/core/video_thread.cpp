@@ -467,11 +467,10 @@ void VideoThread::Internal::VideoThreadEntryPoint()
         }
         break;
 
-        case VideoThreadCommandType::AsyncBackendCall:
+        case VideoThreadCommandType::AsyncBufferCall:
         {
-          VideoThreadAsyncBackendCallCommand* acmd = static_cast<VideoThreadAsyncBackendCallCommand*>(cmd);
-          acmd->func(s_state.gpu_backend.get());
-          acmd->~VideoThreadAsyncBackendCallCommand();
+          VideoThreadAsyncBufferCallCommand* acmd = static_cast<VideoThreadAsyncBufferCallCommand*>(cmd);
+          acmd->func(acmd + 1);
         }
         break;
 
@@ -618,6 +617,12 @@ void VideoThread::StopFullscreenUI()
 std::optional<GPURenderer> VideoThread::GetRequestedRenderer()
 {
   return s_state.requested_renderer;
+}
+
+GPUBackend* VideoThread::GetGPUBackend()
+{
+  DebugAssert(IsOnThread());
+  return s_state.gpu_backend.get();
 }
 
 bool VideoThread::CreateGPUBackend(GPURenderer renderer, bool upload_vram, std::optional<bool> fullscreen, Error* error)
@@ -862,6 +867,8 @@ bool VideoThread::CreateGPUBackendOnThread(bool hardware_renderer, bool upload_v
     {
       if (error)
         *error = local_error;
+
+      DestroyGPUBackendOnThread();
       return false;
     }
   }
@@ -1149,31 +1156,25 @@ void VideoThread::RunOnThread(AsyncCallType func)
   PushCommandAndWakeThread(cmd);
 }
 
-void VideoThread::RunOnBackend(AsyncBackendCallType func, bool sync, bool spin_or_wake)
+void VideoThread::RunOnThreadAndSync(AsyncCallType func)
 {
   if (!s_state.use_thread) [[unlikely]]
   {
-    func(s_state.gpu_backend.get());
+    func();
     return;
   }
 
-  VideoThreadAsyncBackendCallCommand* cmd =
-    AllocateCommand<VideoThreadAsyncBackendCallCommand>(VideoThreadCommandType::AsyncBackendCall, std::move(func));
-  if (sync)
-    PushCommandAndSync(cmd, spin_or_wake);
-  else if (spin_or_wake)
-    PushCommandAndWakeThread(cmd);
-  else
-    PushCommand(cmd);
+  VideoThreadAsyncCallCommand* cmd =
+    AllocateCommand<VideoThreadAsyncCallCommand>(VideoThreadCommandType::AsyncCall, std::move(func));
+  PushCommandAndSync(cmd, false);
 }
 
 std::pair<VideoThreadCommand*, void*> VideoThread::BeginASyncBufferCall(AsyncBufferCallType func, u32 buffer_size)
 {
   // this is less than optimal, but it's only used for input osd updates currently, so whatever
-  VideoThreadAsyncCallCommand* const cmd = AllocateCommand<VideoThreadAsyncCallCommand>(
-    sizeof(VideoThreadAsyncCallCommand) + buffer_size, VideoThreadCommandType::AsyncCall);
+  VideoThreadAsyncBufferCallCommand* const cmd = AllocateCommand<VideoThreadAsyncBufferCallCommand>(
+    sizeof(VideoThreadAsyncBufferCallCommand) + buffer_size, VideoThreadCommandType::AsyncBufferCall, func);
   void* const buffer = static_cast<void*>(cmd + 1);
-  cmd->func = [func, buffer]() { func(buffer); };
   return std::make_pair(static_cast<VideoThreadCommand*>(cmd), buffer);
 }
 
@@ -1181,9 +1182,8 @@ void VideoThread::EndASyncBufferCall(VideoThreadCommand* cmd)
 {
   if (!s_state.use_thread) [[unlikely]]
   {
-    VideoThreadAsyncCallCommand* const acmd = static_cast<VideoThreadAsyncCallCommand*>(cmd);
-    acmd->func();
-    acmd->~VideoThreadAsyncCallCommand();
+    VideoThreadAsyncBufferCallCommand* const acmd = static_cast<VideoThreadAsyncBufferCallCommand*>(cmd);
+    acmd->func(static_cast<void*>(acmd + 1));
     return;
   }
 

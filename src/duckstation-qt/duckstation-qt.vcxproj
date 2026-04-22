@@ -329,6 +329,7 @@
     <QtUi Include="debuggingsettingswidget.ui">
       <FileType>Document</FileType>
     </QtUi>
+    <None Include="translations\duckstation-qt_az.ts" />
     <None Include="translations\duckstation-qt_es-es.ts" />
     <None Include="translations\duckstation-qt_sv.ts" />
     <None Include="translations\duckstation-qt_tr.ts" />
@@ -357,6 +358,9 @@
     <ProjectReference Include="..\util\util.vcxproj">
       <Project>{57f6206d-f264-4b07-baf8-11b9bbe1f455}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="duckstation-qt.manifest" />
   </ItemGroup>
   <Target Name="CopyCommonDataFiles" AfterTargets="Build" Inputs="@(CommonDataFiles)" Outputs="@(CommonDataFiles -> '$(BinaryOutputDir)%(RecursiveDir)%(Filename)%(Extension)')">
     <Message Text="Copying common data files" Importance="High" />

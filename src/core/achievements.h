@@ -75,7 +75,7 @@ const HashDatabaseEntry* LookupGameHash(const GameHash& hash);
 TinyString GameHashToString(const std::optional<GameHash>& hash);
 
 /// Initializes the RetroAchievments client.
-bool Initialize();
+void Initialize();
 
 /// Updates achievements settings.
 void UpdateSettings(const Settings& old_config);
@@ -167,6 +167,9 @@ bool IsLoggedIn();
 
 /// Returns true if the user has been successfully logged in, or the request is in progress.
 bool IsLoggedInOrLoggingIn();
+
+/// Returns true if credentials have been saved for login.
+bool HasSavedCredentials();
 
 /// Returns the logged-in user name.
 const std::string& GetLoggedInUserName();

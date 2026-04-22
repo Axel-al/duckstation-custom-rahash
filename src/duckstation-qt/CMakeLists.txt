@@ -164,6 +164,7 @@ set(SRCS
 )
 
 set(TS_FILES
+  translations/duckstation-qt_az.ts
   translations/duckstation-qt_de.ts
   translations/duckstation-qt_en.ts
   translations/duckstation-qt_es.ts
@@ -216,6 +217,7 @@ target_include_directories(duckstation-qt PRIVATE "$<BUILD_INTERFACE:${CMAKE_CUR
 
 if(WIN32)
   target_sources(duckstation-qt PRIVATE
+    duckstation-qt.manifest
     duckstation-qt.rc
     vcruntimecheck.cpp
   )

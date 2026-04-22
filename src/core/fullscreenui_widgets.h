@@ -526,6 +526,9 @@ bool WasSplitWindowChanged();
 void FocusSplitWindowContent();
 bool SplitWindowIsNavWindow();
 
+bool AreAnyWidgetsDialogOpen();
+bool AreAnyWidgetsDialogInteractable();
+
 using FileSelectorCallback = std::function<void(std::string path)>;
 using FileSelectorFilters = std::vector<std::string>;
 bool IsFileSelectorOpen();
@@ -544,7 +547,9 @@ void CloseChoiceDialog();
 using DropdownDialogCallback = std::function<void(s32 index, const std::string& title)>;
 using DropdownDialogOptions = std::vector<std::pair<std::string, bool>>;
 bool IsDropdownDialogOpen();
-void OpenDropdownDialog(DropdownDialogOptions options, DropdownDialogCallback callback, float min_width = 0.0f);
+std::string_view GetDropdownDialogHiddenTitle();
+void OpenDropdownDialog(std::string_view hidden_title, DropdownDialogOptions options, DropdownDialogCallback callback,
+                        float min_width = 0.0f);
 void CloseDropdownDialog();
 
 using InputStringDialogCallback = std::function<void(std::string text)>;
@@ -627,6 +632,7 @@ public:
 
   ALWAYS_INLINE const std::string& GetTitle() const { return m_title; }
   ALWAYS_INLINE bool IsOpen() const { return (m_state != State::Inactive); }
+  ALWAYS_INLINE bool IsInteractable() const { return (m_state >= State::Open && m_state <= State::Opening); }
 
   void StartClose();
   void CloseImmediately();

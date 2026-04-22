@@ -559,8 +559,7 @@ bool System::CoreThreadInitialize(Error* error)
 
   VideoThread::Internal::ProcessStartup();
 
-  if (g_settings.achievements_enabled)
-    Achievements::Initialize();
+  Achievements::Initialize();
 
 #ifdef ENABLE_DISCORD_PRESENCE
   if (g_settings.enable_discord_presence)
@@ -1319,7 +1318,6 @@ void System::LoadSettings(bool display_osd_messages)
   g_settings.ApplySettingRestrictions();
 
   Settings::UpdateLogConfig(si);
-  Host::LoadSettings(si, lock);
   InputManager::ReloadSourcesAndBindings(GetInputSourceSettingsLayer(lock), controller_si, GetHotkeySettingsLayer(lock),
                                          lock);
 
@@ -1496,7 +1494,7 @@ void System::ApplySettings(bool display_osd_messages)
   }
 
   CheckForSettingsChanges(old_settings);
-  Host::CheckForSettingsChanges(old_settings);
+  Host::OnSettingsReloaded();
 }
 
 void System::ReloadGameSettings(bool display_osd_messages)
@@ -5350,7 +5348,7 @@ bool System::LoadOneRewindState()
   LoadMemoryState((s_state.memory_save_state_count > 1) ? PopMemoryState() : GetFirstMemoryState(), true);
 
   // back in time, need to reset perf counters
-  VideoThread::RunOnThread(&PerformanceCounters::Reset);
+  PerformanceCounters::Reset();
 
   return true;
 }
@@ -5388,7 +5386,7 @@ void System::SetRewinding(bool enabled)
     if (was_enabled)
     {
       // reset perf counters to avoid the spike
-      VideoThread::RunOnThread(&PerformanceCounters::Reset);
+      PerformanceCounters::Reset();
 
       // and wait the full frequency before filling a new rewind slot
       s_state.rewind_save_counter = s_state.rewind_save_frequency;
@@ -5732,9 +5730,10 @@ bool System::StartMediaCapture(std::string path)
   if (capture_video && Core::GetBoolSettingValue("MediaCapture", "VideoAutoSize", false))
   {
     // need to query this on the GPU thread
-    VideoThread::RunOnBackend(
-      [path = std::move(path), capture_audio, mode = g_settings.display_screenshot_mode](GPUBackend* backend) mutable {
-        if (!backend)
+    VideoThread::RunOnThread(
+      [path = std::move(path), capture_audio, mode = g_settings.display_screenshot_mode]() mutable {
+        GPUBackend* const backend = VideoThread::GetGPUBackend();
+        if (!backend) [[unlikely]]
           return;
 
         // Prefer aligning for non-window size.
@@ -5747,8 +5746,7 @@ bool System::StartMediaCapture(std::string path)
         Host::RunOnCoreThread([path = std::move(path), capture_audio, video_width, video_height]() mutable {
           StartMediaCapture(std::move(path), true, capture_audio, video_width, video_height);
         });
-      },
-      false, true);
+      });
     return true;
   }
 
