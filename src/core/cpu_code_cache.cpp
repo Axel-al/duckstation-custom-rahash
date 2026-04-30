@@ -377,7 +377,7 @@ CPU::CodeCache::Block* CPU::CodeCache::CreateBlock(u32 pc, const BlockInstructio
 
   // retain from old block
   const u32 frame_number = System::GetFrameNumber();
-  u32 recompile_frame = System::GetFrameNumber();
+  u32 recompile_frame = frame_number;
   u8 recompile_count = 0;
 
   const u32 idx = (pc & 0xFFFF) >> 2;
@@ -627,7 +627,7 @@ CPU::CodeCache::PageProtectionMode CPU::CodeCache::GetProtectionModeForBlock(con
 
 void CPU::CodeCache::InvalidateBlock(Block* block, BlockState new_state)
 {
-  if (block->state == BlockState::Valid)
+  if (block->state == BlockState::Valid || block->state == BlockState::FallbackToInterpreter)
   {
     SetCodeLUT(block->pc, g_compile_or_revalidate_block);
     BacklinkBlocks(block->pc, g_compile_or_revalidate_block);
@@ -1257,17 +1257,16 @@ void CPU::CodeCache::FillBlockRegInfo(Block* block)
           }
         }
         break;
-
-        case InstructionOp::lwc2:
-        case InstructionOp::swc2:
-          BackpropSetReads(rs);
-          BackpropSetReads(rt);
-          break;
-
-        default:
-          ERROR_LOG("Unknown op {}", static_cast<u32>(iinst->op.GetValue()));
-          break;
       }
+
+      case InstructionOp::lwc2:
+      case InstructionOp::swc2:
+        BackpropSetReads(rs);
+        break;
+
+      default:
+        ERROR_LOG("Unknown op {}", static_cast<u32>(iinst->op.GetValue()));
+        break;
     } // end switch
 
     inst--;
@@ -1347,15 +1346,11 @@ void CPU::CodeCache::CompileOrRevalidateBlock(u32 start_pc)
 
 void CPU::CodeCache::DiscardAndRecompileBlock(u32 start_pc)
 {
-  MemMap::BeginCodeWrite();
-
   DEV_LOG("Discard block {:08X} with manual protection", start_pc);
   Block* block = LookupBlock(start_pc);
   DebugAssert(block && block->state == BlockState::Valid);
   InvalidateBlock(block, BlockState::NeedsRecompile);
   CompileOrRevalidateBlock(start_pc);
-
-  MemMap::EndCodeWrite();
 }
 
 const void* CPU::CodeCache::CreateBlockLink(Block* block, void* code, u32 newpc)

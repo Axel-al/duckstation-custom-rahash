@@ -110,7 +110,6 @@ std::span<const Entry> GetEntries();
 const Entry* GetEntryByIndex(size_t index);
 const Entry* GetEntryForPath(std::string_view path);
 const Entry* GetEntryBySerial(std::string_view serial);
-const Entry* GetEntryBySerialAndHash(std::string_view serial, u64 hash);
 std::vector<const Entry*> GetDiscSetMembers(const GameDatabase::DiscSetEntry* dsentry,
                                             bool sort_by_most_recent = false);
 const Entry* GetFirstDiscSetMember(const GameDatabase::DiscSetEntry* dsentry);
@@ -181,14 +180,12 @@ std::string GetGameIconPath(const GameList::Entry* entry);
 void ReloadMemcardTimestampCache();
 
 /// Updates game list with new achievement unlocks.
-void UpdateAchievementData(const std::span<u8, 16> hash, u32 game_id, u32 num_achievements, u32 num_unlocked,
+void UpdateAchievementData(std::span<const u8, 16> hash, u32 game_id, u32 num_achievements, u32 num_unlocked,
                            u32 num_unlocked_hardcore);
 void UpdateAllAchievementData();
 
 /// Accesses achievement game badges. Assumes the lock is held.
 bool PreferAchievementGameBadgesForIcons();
-std::string GetAchievementGameBadgeURL(u32 game_id);
-void UpdateAchievementBadgeName(u32 game_id, std::string_view badge_name);
 
 } // namespace GameList
 

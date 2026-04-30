@@ -1083,13 +1083,13 @@ void MultipleDeviceAutobindDialog::doAutomaticBinding()
   {
     if (global)
     {
-      QtHost::SaveGameSettings(si, false);
-      g_core_thread->reloadGameSettings(false);
+      QtHost::QueueSettingsSave();
+      g_core_thread->reloadInputBindings();
     }
     else
     {
-      QtHost::QueueSettingsSave();
-      g_core_thread->reloadInputBindings();
+      QtHost::SaveGameSettings(si, false);
+      g_core_thread->reloadGameSettings(false);
     }
     accept();
   }

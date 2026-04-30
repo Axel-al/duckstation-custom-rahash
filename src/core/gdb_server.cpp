@@ -188,7 +188,7 @@ bool GDBServer::Cmd$G(ClientSocket* client, std::string_view data)
       if (StringUtil::DecodeHex(le_value, tex_value) == 4)
       {
         *reg = ZeroExtend32(le_value[0]) | (ZeroExtend32(le_value[1]) << 8) | (ZeroExtend32(le_value[2]) << 16) |
-               (ZeroExtend32(le_value[3]) << 16);
+               (ZeroExtend32(le_value[3]) << 24);
       }
       else
       {
@@ -271,7 +271,7 @@ bool GDBServer::Cmd$M(ClientSocket* client, std::string_view data)
   // large enough for most requests
   llvm::SmallVector<u8, 128> buffer;
   buffer.resize_for_overwrite(length.value());
-  if (!StringUtil::DecodeHex(buffer, caret))
+  if (StringUtil::DecodeHex(buffer, caret) != length.value())
   {
     ERROR_LOG("Invalid hex in packet {}", data);
     return false;
@@ -292,7 +292,6 @@ bool GDBServer::Cmd$M(ClientSocket* client, std::string_view data)
 bool GDBServer::Cmd$s(ClientSocket* client, std::string_view data)
 {
   System::SingleStepCPU();
-  client->SendReplyWithAck("OK");
   return true;
 }
 
@@ -554,7 +553,7 @@ void GDBServer::ClientSocket::OnSystemPaused()
   m_seen_resume = false;
 
   // Generate a stop reply packet, insert '?' command to generate it.
-  SendReplyWithAck("S00");
+  SendReplyWithAck("S05");
 }
 
 void GDBServer::ClientSocket::OnSystemResumed()

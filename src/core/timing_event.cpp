@@ -135,7 +135,8 @@ void TimingEvents::SortEvent(TimingEvent* event)
       event->prev = nullptr;
       event->next = s_state.active_events_head;
       s_state.active_events_head = event;
-      UpdateCPUDowncount();
+      if (!s_state.current_event)
+        UpdateCPUDowncount();
     }
   }
   else if (event->next && event_runtime > event->next->m_next_run_time)
@@ -556,6 +557,8 @@ void TimingEvent::Delay(TickCount ticks)
 {
   using namespace TimingEvents;
 
+  DebugAssert(ticks > 0);
+
   if (!m_active)
   {
     Panic("Trying to delay an inactive event");
@@ -573,6 +576,8 @@ void TimingEvent::Delay(TickCount ticks)
 void TimingEvent::Schedule(TickCount ticks)
 {
   using namespace TimingEvents;
+
+  DebugAssert(ticks > 0);
 
   const GlobalTicks ts = GetTimestampForNewEvent();
   const GlobalTicks next_run_time = ts + static_cast<u32>(ticks);

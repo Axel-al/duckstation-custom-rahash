@@ -1037,7 +1037,8 @@ void FullscreenUI::HandleSelectDiscForDiscSet(const GameDatabase::DiscSetEntry* 
 void FullscreenUI::SwitchToGameList()
 {
   s_game_list_locals.game_list_view =
-    static_cast<GameListView>(Core::GetBaseIntSettingValue("Main", "DefaultFullscreenUIGameView", 0));
+    static_cast<GameListView>(std::min(Core::GetBaseUIntSettingValue("Main", "DefaultFullscreenUIGameView", 0),
+                                       static_cast<u32>(GameListView::Count) - 1));
   s_game_list_locals.game_list_current_selection_path = {};
   s_game_list_locals.game_list_current_selection_timeout = 0.0f;
 
@@ -1067,7 +1068,7 @@ GPUTexture* FullscreenUI::GetGameListCover(const GameList::Entry* entry, bool fa
     {
       const auto lock = Achievements::GetLock();
       if (Achievements::GetCurrentGamePath() == entry->path)
-        cover_it->second = Achievements::GetCurrentGameIconURL();
+        cover_it->second = Achievements::GetCurrentGameBadgeURL();
     }
   }
 
@@ -1144,7 +1145,7 @@ GPUTexture* FullscreenUI::GetCoverForCurrentGame(const std::string& game_path)
 
 void FullscreenUI::SetCoverCacheEntry(std::string path, std::string cover_path)
 {
-  s_game_list_locals.cover_image_map.emplace(std::move(path), std::move(cover_path));
+  s_game_list_locals.cover_image_map.insert_or_assign(std::move(path), std::move(cover_path));
 }
 
 void FullscreenUI::RemoveCoverCacheEntry(const std::string& path)

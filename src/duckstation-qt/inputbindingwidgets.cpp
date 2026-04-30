@@ -591,6 +591,5 @@ void InputBindingWidget::showEffectBindingDialog()
     g_core_thread->reloadInputBindings();
   }
 
-  setNewBinding();
   reloadBinding();
 }

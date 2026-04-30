@@ -162,11 +162,14 @@ void HotkeySettingsWidget::setFilter(const QString& filter)
     int visible_row_count = 0;
     for (int i = 0; i < count; i++)
     {
-      QWidget* row = qobject_cast<QWidget*>(cw.layout->itemAt(i)->widget());
+      QWidget* const row = qobject_cast<QWidget*>(cw.layout->itemAt(i)->widget());
       if (!row)
         continue;
 
-      QLabel* label = row->findChild<QLabel*>(Qt::FindDirectChildrenOnly);
+      QLabel* const label = row->findChild<QLabel*>(Qt::FindDirectChildrenOnly);
+      if (!label)
+        continue;
+
       const bool visible = (filter.isEmpty() || label->text().indexOf(filter, 0, Qt::CaseInsensitive) >= 0);
       row->setVisible(visible);
       visible_row_count += static_cast<int>(visible);
