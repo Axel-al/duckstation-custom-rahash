@@ -94,6 +94,8 @@ using PlayedTimeMap = UnorderedStringMap<PlayedTimeEntry>;
 
 static_assert(std::is_same_v<decltype(Entry::hash), GameHash>);
 
+static bool ShouldLoadAchievementsProgressDatabase();
+static void LoadAchievementsProgressDatabase(Achievements::ProgressDatabase* achievements_progress);
 
 static bool GetExeListEntry(const std::string& path, Entry* entry);
 static bool GetPsfListEntry(const std::string& path, Entry* entry);
@@ -191,6 +193,27 @@ bool GameList::ShouldShowLocalizedTitles()
   return Core::GetBaseBoolSettingValue("UI", "GameListShowLocalizedTitles", true);
 }
 
+bool GameList::ShouldLoadAchievementsProgressDatabase()
+{
+  if (Achievements::HasSavedCredentials())
+    return true;
+
+  const auto lock = Core::GetSettingsLock();
+  const SettingsInterface* si = Core::GetBaseSettingsLayer();
+  std::string_view username, token;
+  return (si->LookupValue("Cheevos", "Username", &username) && !username.empty() &&
+          si->LookupValue("Cheevos", "Token", &token) && !token.empty());
+}
+
+void GameList::LoadAchievementsProgressDatabase(Achievements::ProgressDatabase* achievements_progress)
+{
+  if (!ShouldLoadAchievementsProgressDatabase())
+    return;
+
+  Error error;
+  if (!achievements_progress->Load(&error))
+    WARNING_LOG("Failed to load achievements progress: {}", error.GetDescription());
+}
 
 bool GameList::PreferAchievementGameBadgesForIcons()
 {
@@ -723,12 +746,7 @@ bool GameList::RescanCustomAttributesForPath(const std::string& path, const INIS
   if (entry.IsDisc())
   {
     Achievements::ProgressDatabase achievements_progress;
-    if (Achievements::HasSavedCredentials())
-    {
-      Error error;
-      if (!achievements_progress.Load(&error))
-        WARNING_LOG("Failed to load achievements progress: {}", error.GetDescription());
-    }
+    LoadAchievementsProgressDatabase(&achievements_progress);
     PopulateEntryAchievements(&entry, achievements_progress);
   }
 
@@ -930,12 +948,7 @@ void GameList::UpdateAchievementData(std::span<const u8, 16> hash, u32 game_id, 
 void GameList::UpdateAllAchievementData()
 {
   Achievements::ProgressDatabase achievements_progress;
-  if (Achievements::HasSavedCredentials())
-  {
-    Error error;
-    if (!achievements_progress.Load(&error))
-      WARNING_LOG("Failed to load achievements progress: {}", error.GetDescription());
-  }
+  LoadAchievementsProgressDatabase(&achievements_progress);
 
   std::unique_lock lock(s_state.mutex);
 
@@ -1132,11 +1145,7 @@ void GameList::Refresh(bool invalidate_cache, bool only_cache, ProgressCallback*
   custom_attributes_ini.Load();
 
   Achievements::ProgressDatabase achievements_progress;
-  if (Achievements::HasSavedCredentials())
-  {
-    if (!achievements_progress.Load(&error))
-      WARNING_LOG("Failed to load achievements progress: {}", error.GetDescription());
-  }
+  LoadAchievementsProgressDatabase(&achievements_progress);
 
 #ifdef __ANDROID__
   recursive_dirs.push_back(Path::Combine(EmuFolders::DataRoot, "games"));
@@ -2168,12 +2177,7 @@ bool GameList::SaveCustomAchievementsHashForPath(const std::string& path, const 
     return false;
 
   Achievements::ProgressDatabase achievements_progress;
-  if (Achievements::HasSavedCredentials())
-  {
-    Error error;
-    if (!achievements_progress.Load(&error))
-      WARNING_LOG("Failed to load achievements progress: {}", error.GetDescription());
-  }
+  LoadAchievementsProgressDatabase(&achievements_progress);
 
   auto lock = GetLock();
   Entry* entry = GetMutableEntryForPath(path);
