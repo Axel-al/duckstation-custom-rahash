@@ -577,7 +577,7 @@ void TimingEvent::Schedule(TickCount ticks)
 {
   using namespace TimingEvents;
 
-  DebugAssert(ticks > 0);
+  DebugAssert(ticks >= 0);
 
   const GlobalTicks ts = GetTimestampForNewEvent();
   const GlobalTicks next_run_time = ts + static_cast<u32>(ticks);
