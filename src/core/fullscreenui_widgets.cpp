@@ -4775,8 +4775,9 @@ void FullscreenUI::FileSelectorDialog::PopulateItems()
   {
     FileSystem::FindResultsArray results;
     FileSystem::FindFiles(m_current_directory.c_str(), "*",
-                          FILESYSTEM_FIND_FILES | FILESYSTEM_FIND_FOLDERS | FILESYSTEM_FIND_HIDDEN_FILES |
-                            FILESYSTEM_FIND_RELATIVE_PATHS | FILESYSTEM_FIND_SORT_BY_NAME,
+                          (m_is_directory ? 0 : FILESYSTEM_FIND_FILES) | FILESYSTEM_FIND_FOLDERS |
+                            FILESYSTEM_FIND_HIDDEN_FILES | FILESYSTEM_FIND_RELATIVE_PATHS |
+                            FILESYSTEM_FIND_SORT_BY_NAME,
                           &results);
 
     // Ensure we only go back to the root list once we've gone up from the root of that drive.
@@ -6353,7 +6354,7 @@ void FullscreenUI::LoadingScreenProgressCallback::Close()
   else
   {
     // since this was pushing frames, we need to restore the context. do that by pushing a frame ourselves
-    VideoThread::Internal::PresentFrameAndRestoreContext();
+    VideoThread::PresentFrameAndRestoreContext();
   }
 
   m_last_progress_percent = -1;

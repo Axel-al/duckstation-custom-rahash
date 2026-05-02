@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: CC-BY-NC-ND-4.0
 
 #include "gdb_server.h"
+
+#ifdef ENABLE_GDB_SERVER
+
 #include "bus.h"
 #include "cpu_core.h"
 #include "cpu_core_private.h"
@@ -132,8 +135,16 @@ static constexpr std::pair<std::string_view, bool (*)(ClientSocket*, std::string
   {"qSupported", Cmd$qSupported},
 };
 
-static std::shared_ptr<ListenSocket> s_gdb_listen_socket;
-static std::vector<std::shared_ptr<ClientSocket>> s_gdb_clients;
+namespace {
+struct Locals
+{
+  std::unique_ptr<SocketMultiplexer> multiplexer;
+  std::shared_ptr<ListenSocket> listen_socket;
+  std::vector<std::shared_ptr<ClientSocket>> clients;
+};
+} // namespace
+
+ALIGN_TO_CACHE_LINE static Locals s_locals;
 
 } // namespace GDBServer
 
@@ -451,22 +462,22 @@ void GDBServer::ClientSocket::OnConnected()
   m_seen_resume = System::IsPaused();
   System::PauseSystem(true);
 
-  s_gdb_clients.push_back(std::static_pointer_cast<ClientSocket>(shared_from_this()));
+  s_locals.clients.push_back(std::static_pointer_cast<ClientSocket>(shared_from_this()));
 }
 
 void GDBServer::ClientSocket::OnDisconnected(const Error& error)
 {
   INFO_LOG("Client {} disconnected: {}", GetRemoteAddress().ToString(), error.GetDescription());
 
-  const auto iter = std::find_if(s_gdb_clients.begin(), s_gdb_clients.end(),
+  const auto iter = std::find_if(s_locals.clients.begin(), s_locals.clients.end(),
                                  [this](const std::shared_ptr<ClientSocket>& rhs) { return (rhs.get() == this); });
-  if (iter == s_gdb_clients.end())
+  if (iter == s_locals.clients.end())
   {
     ERROR_LOG("Unknown GDB client disconnected? This should never happen.");
     return;
   }
 
-  s_gdb_clients.erase(iter);
+  s_locals.clients.erase(iter);
 }
 
 void GDBServer::ClientSocket::OnRead()
@@ -572,7 +583,7 @@ void GDBServer::ClientSocket::SendReplyWithAck(std::string_view reply)
 bool GDBServer::Initialize(u16 port)
 {
   Error error;
-  Assert(!s_gdb_listen_socket);
+  Assert(!s_locals.listen_socket);
 
   const std::optional<SocketAddress> address =
     SocketAddress::Parse(SocketAddress::Type::IPv4, "127.0.0.1", port, &error);
@@ -582,15 +593,17 @@ bool GDBServer::Initialize(u16 port)
     return false;
   }
 
-  SocketMultiplexer* multiplexer = System::GetSocketMultiplexer();
-  if (!multiplexer)
+  if (!(s_locals.multiplexer = SocketMultiplexer::Create(&error)))
+  {
+    ERROR_LOG("Failed to create socket multiplexer: {}", error.GetDescription());
     return false;
+  }
 
-  s_gdb_listen_socket = multiplexer->CreateListenSocket<ClientSocket>(address.value(), &error);
-  if (!s_gdb_listen_socket)
+  s_locals.listen_socket = s_locals.multiplexer->CreateListenSocket<ClientSocket>(address.value(), &error);
+  if (!s_locals.listen_socket)
   {
     ERROR_LOG("Failed to create listen socket: {}", error.GetDescription());
-    System::ReleaseSocketMultiplexer();
+    s_locals.multiplexer.reset();
     return false;
   }
 
@@ -600,36 +613,44 @@ bool GDBServer::Initialize(u16 port)
 
 bool GDBServer::HasAnyClients()
 {
-  return !s_gdb_clients.empty();
+  return !s_locals.clients.empty();
+}
+
+void GDBServer::Poll(u32 timeout_ms)
+{
+  if (s_locals.multiplexer)
+    s_locals.multiplexer->PollEventsWithTimeout(timeout_ms);
 }
 
 void GDBServer::Shutdown()
 {
-  if (!s_gdb_listen_socket)
+  if (!s_locals.listen_socket)
     return;
 
-  INFO_LOG("Disconnecting {} GDB clients...", s_gdb_clients.size());
-  while (!s_gdb_clients.empty())
+  INFO_LOG("Disconnecting {} GDB clients...", s_locals.clients.size());
+  while (!s_locals.clients.empty())
   {
     // maintain a reference so we don't delete while in scope
-    std::shared_ptr<ClientSocket> client = s_gdb_clients.back();
+    std::shared_ptr<ClientSocket> client = s_locals.clients.back();
     client->Close();
   }
 
   INFO_LOG("Stopping GDB server.");
-  s_gdb_listen_socket->Close();
-  s_gdb_listen_socket.reset();
-  System::ReleaseSocketMultiplexer();
+  s_locals.listen_socket->Close();
+  s_locals.listen_socket.reset();
+  s_locals.multiplexer.reset();
 }
 
 void GDBServer::OnSystemPaused()
 {
-  for (auto& it : s_gdb_clients)
+  for (auto& it : s_locals.clients)
     it->OnSystemPaused();
 }
 
 void GDBServer::OnSystemResumed()
 {
-  for (auto& it : s_gdb_clients)
+  for (auto& it : s_locals.clients)
     it->OnSystemResumed();
 }
+
+#endif // ENABLE_GDB_SERVER

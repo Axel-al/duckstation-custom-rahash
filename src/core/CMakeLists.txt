@@ -38,6 +38,8 @@ add_library(core
   ddgo_controller.h
   digital_controller.cpp
   digital_controller.h
+  discord_presence.cpp
+  discord_presence.h
   dma.cpp
   dma.h
   fullscreenui.cpp
@@ -141,6 +143,7 @@ add_library(core
   video_thread.cpp
   video_thread.h
   video_thread_commands.h
+  video_thread_private.h
 )
 
 set(RECOMPILER_SRCS

@@ -342,8 +342,10 @@ ALWAYS_INLINE_RELEASE void TimingEvents::CommitGlobalTicks(const GlobalTicks new
       s_state.current_event = event;
 
       // Factor late time into the time for the next invocation.
-      const TickCount ticks_late = static_cast<TickCount>(s_state.global_tick_counter - event->m_next_run_time);
       const TickCount ticks_to_execute = static_cast<TickCount>(s_state.global_tick_counter - event->m_last_run_time);
+
+      // Shouldn't ever be late due to the min() above.
+      DebugAssert(static_cast<TickCount>(s_state.global_tick_counter - event->m_next_run_time) == 0);
 
       // Why don't we modify event->m_downcount directly? Because otherwise the event list won't be sorted.
       // Adding the interval may cause this event to have a greater downcount than the next, and a new event
@@ -352,7 +354,7 @@ ALWAYS_INLINE_RELEASE void TimingEvents::CommitGlobalTicks(const GlobalTicks new
       event->m_last_run_time = s_state.global_tick_counter;
 
       // The cycles_late is only an indicator, it doesn't modify the cycles to execute.
-      event->m_callback(event->m_callback_param, ticks_to_execute, ticks_late);
+      event->m_callback(event->m_callback_param, ticks_to_execute);
       if (event->m_active)
       {
         event->m_next_run_time = s_state.current_event_next_run_time;
@@ -650,7 +652,7 @@ void TimingEvent::InvokeEarly(bool force /* = false */)
   if (s_state.active_events_head == this)
     UpdateCPUDowncount();
 
-  m_callback(m_callback_param, ticks_to_execute, 0);
+  m_callback(m_callback_param, ticks_to_execute);
 }
 
 void TimingEvent::Activate()

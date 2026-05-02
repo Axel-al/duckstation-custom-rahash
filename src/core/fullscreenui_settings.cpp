@@ -5217,6 +5217,12 @@ void FullscreenUI::DrawAchievementsSettingsPage(std::unique_lock<std::mutex>& se
     "Cheevos", "ChallengeIndicatorMode", Settings::DEFAULT_ACHIEVEMENT_CHALLENGE_INDICATOR_MODE,
     &Settings::ParseAchievementChallengeIndicatorMode, &Settings::GetAchievementChallengeIndicatorModeName,
     &Settings::GetAchievementChallengeIndicatorModeDisplayName, AchievementChallengeIndicatorMode::MaxCount, enabled);
+  DrawEnumSetting(
+    bsi, FSUI_ICONVSTR(ICON_FA_BARS_PROGRESS, "Progress Indicators"),
+    FSUI_VSTR("Shows a popup in the selected location when progress towards a measured achievement changes."),
+    "Cheevos", "ProgressIndicatorMode", Settings::DEFAULT_ACHIEVEMENT_PROGRESS_INDICATOR_MODE,
+    &Settings::ParseAchievementProgressIndicatorMode, &Settings::GetAchievementProgressIndicatorModeName,
+    &Settings::GetAchievementProgressIndicatorModeDisplayName, AchievementProgressIndicatorMode::MaxCount, enabled);
 
   DrawEnumSetting(bsi, FSUI_ICONVSTR(ICON_FA_LOCATION_DOT, "Indicator Location"),
                   FSUI_VSTR("Selects the screen location for challenge/progress indicators, and leaderboard trackers."),
@@ -5227,11 +5233,6 @@ void FullscreenUI::DrawAchievementsSettingsPage(std::unique_lock<std::mutex>& se
                      FSUI_VSTR("Determines the size of challenge/progress indicators."),
                      FSUI_ICONVSTR(ICON_FA_EXPAND, "Custom Indicator Scale"),
                      FSUI_VSTR("Sets the custom scale percentage for challenge/progress indicators."));
-
-  DrawToggleSetting(
-    bsi, FSUI_ICONVSTR(ICON_FA_BARS_PROGRESS, "Progress Indicators"),
-    FSUI_VSTR("Shows a popup in the selected location when progress towards a measured achievement changes."),
-    "Cheevos", "ProgressIndicators", true, enabled);
 
   if (!IsEditingGameSettings(bsi))
   {

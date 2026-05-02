@@ -378,12 +378,12 @@ void FullscreenUI::FixStateIfPaused()
   ImGui::UpdateInputEvents(false);
 }
 
-void FullscreenUI::ClosePauseMenu()
+void FullscreenUI::ClosePauseMenu(float transition_time /*= SHORT_TRANSITION_TIME*/)
 {
   if (!VideoThread::HasGPUBackend())
     return;
 
-  BeginTransition(SHORT_TRANSITION_TIME, []() {
+  BeginTransition(transition_time, []() {
     s_locals.current_pause_submenu = PauseSubMenu::None;
     s_locals.pause_menu_was_open = false;
     SwitchToMainWindow(MainWindowType::None);
@@ -858,7 +858,7 @@ void FullscreenUI::RequestRestart()
     if (result)
     {
       Host::RunOnCoreThread(System::ResetSystem);
-      BeginTransition(LONG_TRANSITION_TIME, &ClosePauseMenuImmediately);
+      ClosePauseMenu(LONG_TRANSITION_TIME);
     }
     else
     {
@@ -1996,7 +1996,7 @@ void FullscreenUI::DrawSaveStateSelector()
       const bool global = entry.global;
       const bool is_undo = entry.state_path.empty();
       ClearSaveStateEntryList(); // entry no longer valid
-      ReturnToMainWindow(LONG_TRANSITION_TIME);
+      ClosePauseMenu(LONG_TRANSITION_TIME);
 
       // Loading undo state?
       if (is_undo)
@@ -2014,7 +2014,7 @@ void FullscreenUI::DrawSaveStateSelector()
     const s32 slot = entry.slot;
     const bool global = entry.global;
     ClearSaveStateEntryList(); // entry no longer valid
-    ReturnToMainWindow(LONG_TRANSITION_TIME);
+    ClosePauseMenu(LONG_TRANSITION_TIME);
 
     Host::RunOnCoreThread([slot, global]() { System::SaveStateToSlot(global, slot); });
   };

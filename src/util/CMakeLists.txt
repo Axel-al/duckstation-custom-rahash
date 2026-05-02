@@ -242,6 +242,7 @@ if(WIN32)
     http_downloader_winhttp.cpp
     win32_raw_input_source.cpp
     win32_raw_input_source.h
+    xaudio2_audio_stream.cpp
     xinput_source.cpp
     xinput_source.h
   )

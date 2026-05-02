@@ -496,6 +496,56 @@ CPU::CodeCache::Block* CPU::CodeCache::CreateBlock(u32 pc, const BlockInstructio
   // add it to the tracking list for its page
   AddBlockToPageList(block);
 
+#if 0
+  SmallString disasm;
+  u32 disasm_pc = block->pc;
+  for (u32 i = 0; i < block->size; i++)
+  {
+    const Instruction* inst = block->Instructions() + i;
+    const InstructionInfo* iinfo = block->InstructionsInfo() + i;
+    CPU::DisassembleInstruction(&disasm, disasm_pc, inst->bits);
+    DEBUG_LOG("[{} {} 0x{:08X}] {:08X} {}", iinfo->is_branch_delay_slot ? "BD" : "  ",
+              iinfo->is_load_delay_slot ? "LD" : "  ", disasm_pc, inst->bits, disasm);
+    disasm_pc += sizeof(Instruction);
+
+    disasm.clear();
+    for (u32 j = 0; j < static_cast<u32>(std::size(iinfo->read_reg)); j++)
+    {
+      if (iinfo->read_reg[j] != Reg::zero)
+        disasm.append_format("{}{}", disasm.empty() ? "" : ", ", GetRegName(iinfo->read_reg[j]));
+    }
+    if (!disasm.empty())
+      DEBUG_LOG("  Reads: {}", disasm);
+
+    disasm.clear();
+    for (u32 j = 0; j < static_cast<u32>(std::size(iinfo->reg_flags)); j++)
+    {
+      if (iinfo->reg_flags[j] & RI_LIVE)
+        disasm.append_format("{}{}", disasm.empty() ? "" : ", ", GetRegName(static_cast<CPU::Reg>(j)));
+    }
+    if (!disasm.empty())
+      DEBUG_LOG("  Live: {}", disasm);
+
+    disasm.clear();
+    for (u32 j = 0; j < static_cast<u32>(std::size(iinfo->reg_flags)); j++)
+    {
+      if (iinfo->reg_flags[j] & RI_USED)
+        disasm.append_format("{}{}", disasm.empty() ? "" : ", ", GetRegName(static_cast<CPU::Reg>(j)));
+    }
+    if (!disasm.empty())
+      DEBUG_LOG("  Used: {}", disasm);
+
+    disasm.clear();
+    for (u32 j = 0; j < static_cast<u32>(std::size(iinfo->reg_flags)); j++)
+    {
+      if (iinfo->reg_flags[j] & RI_LASTUSE)
+        disasm.append_format("{}{}", disasm.empty() ? "" : ", ", GetRegName(static_cast<CPU::Reg>(j)));
+    }
+    if (!disasm.empty())
+      DEBUG_LOG("  Last-Use: {}", disasm);
+  }
+#endif
+
   return block;
 }
 
@@ -1077,7 +1127,8 @@ void CPU::CodeCache::SetRegAccess(InstructionInfo* inst, Reg reg, bool write)
   {                                                                                                                    \
     if (!(inst->reg_flags[static_cast<u8>(reg)] & RI_USED))                                                            \
       inst->reg_flags[static_cast<u8>(reg)] |= RI_LASTUSE;                                                             \
-    prev->reg_flags[static_cast<u8>(reg)] |= RI_LIVE | RI_USED;                                                        \
+    if (prev)                                                                                                          \
+      prev->reg_flags[static_cast<u8>(reg)] |= RI_LIVE | RI_USED;                                                      \
     inst->reg_flags[static_cast<u8>(reg)] |= RI_USED;                                                                  \
     SetRegAccess(inst, reg, false);                                                                                    \
   } while (0)
@@ -1085,7 +1136,8 @@ void CPU::CodeCache::SetRegAccess(InstructionInfo* inst, Reg reg, bool write)
 #define BackpropSetWrites(reg)                                                                                         \
   do                                                                                                                   \
   {                                                                                                                    \
-    prev->reg_flags[static_cast<u8>(reg)] &= ~(RI_LIVE | RI_USED);                                                     \
+    if (prev)                                                                                                          \
+      prev->reg_flags[static_cast<u8>(reg)] &= ~(RI_LIVE | RI_USED);                                                   \
     if (!(inst->reg_flags[static_cast<u8>(reg)] & RI_USED))                                                            \
       inst->reg_flags[static_cast<u8>(reg)] |= RI_LASTUSE;                                                             \
     inst->reg_flags[static_cast<u8>(reg)] |= RI_USED;                                                                  \
@@ -1104,10 +1156,11 @@ void CPU::CodeCache::FillBlockRegInfo(Block* block)
   std::memset(inst->read_reg, 0, sizeof(inst->read_reg));
   // std::memset(inst->write_reg, 0, sizeof(inst->write_reg));
 
-  while (inst != start)
+  for (;;)
   {
-    InstructionInfo* prev = inst - 1;
-    CopyRegInfo(prev, inst);
+    InstructionInfo* const prev = (inst == start) ? nullptr : inst - 1;
+    if (prev)
+      CopyRegInfo(prev, inst);
 
     const Reg rs = iinst->r.rs;
     const Reg rt = iinst->r.rt;
@@ -1292,9 +1345,12 @@ void CPU::CodeCache::FillBlockRegInfo(Block* block)
         break;
     } // end switch
 
+    if (inst == start)
+      break;
+
     inst--;
     iinst--;
-  } // end while
+  } // end for
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

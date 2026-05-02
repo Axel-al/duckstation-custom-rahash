@@ -945,7 +945,7 @@ void ImGuiManager::UpdateOSDMessageRunIdle(const std::unique_lock<std::mutex>& l
     return;
   }
 
-  if (System::GetCoreThreadHandle().IsCallingThread())
+  if (Host::GetCoreThreadHandle().IsCallingThread())
   {
     VideoThread::RunOnThread([]() {
       const std::unique_lock lock(s_state.osd_messages_lock);

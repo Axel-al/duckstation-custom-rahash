@@ -208,8 +208,6 @@ private:
   void confirmActionWithSafetyCheck(const QString& action, bool check_achievements, bool cancel_resume_on_accept,
                                     std::function<void(bool)> callback) const;
 
-  static void videoThreadEntryPoint();
-
   QThread* m_ui_thread;
   QEventLoop* m_event_loop = nullptr;
   QTimer* m_background_controller_polling_timer = nullptr;
