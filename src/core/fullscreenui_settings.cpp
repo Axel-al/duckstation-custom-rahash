@@ -1761,7 +1761,7 @@ void FullscreenUI::SwitchToSettings()
 
 bool FullscreenUI::SwitchToGameSettings(SettingsPage page)
 {
-  return SwitchToGameSettingsForPath(VideoThread::GetGamePath());
+  return SwitchToGameSettingsForPath(VideoThread::GetGamePath(), page);
 }
 
 bool FullscreenUI::SwitchToGameSettingsForPath(const std::string& path, SettingsPage page)
@@ -1784,7 +1784,10 @@ bool FullscreenUI::SwitchToGameSettingsForPath(const std::string& path, Settings
       }
       else
       {
-        ShowToast(OSDMessageType::Info, {}, error.TakeDescription());
+        VideoThread::RunOnThread([error_str = error.TakeDescription()]() mutable {
+          ShowToast(OSDMessageType::Info, {}, std::move(error_str));
+          ClosePauseMenuImmediately();
+        });
       }
     });
 
@@ -2312,6 +2315,16 @@ void FullscreenUI::DrawInterfaceSettingsPage()
                         "", FullscreenUI::GetThemeDisplayNames(), FullscreenUI::GetThemeNames(), true, false,
                         [](std::string_view) { BeginTransition(LONG_TRANSITION_TIME, &FullscreenUI::UpdateTheme); });
 
+  DrawStringListSetting(bsi, FSUI_ICONVSTR(ICON_FA_FONT, "Font"), FSUI_VSTR("Selects the font used for UI text."),
+                        "Main", "ImGuiTextFont", ImGuiManager::GetDefaultTextFontName(),
+                        ImGuiManager::GetTextFontDisplayNames(), ImGuiManager::GetTextFontNames(), true, false,
+                        [](std::string_view) {
+                          // defer it, since we can't change the fonts while rendering
+                          BeginTransition(LONG_TRANSITION_TIME, []() {
+                            Host::RunOnCoreThread([]() { VideoThread::RunOnThread(&ImGuiManager::UpdateTextFont); });
+                          });
+                        });
+
   if (const TinyString current_value =
         bsi->GetTinyStringValue("Main", "FullscreenUIBackground", DEFAULT_BACKGROUND_NAME);
       MenuActionButton(FSUI_ICONVSTR(ICON_FA_IMAGE, "Menu Background"),
@@ -2467,6 +2480,15 @@ void FullscreenUI::DrawInterfaceSettingsPage()
                   "OSDMessageLocation", Settings::DEFAULT_OSD_MESSAGE_LOCATION, &Settings::ParseNotificationLocation,
                   &Settings::GetNotificationLocationName, &Settings::GetNotificationLocationDisplayName,
                   NotificationLocation::MaxCount);
+  DrawStringListSetting(bsi, FSUI_ICONVSTR(ICON_FA_FONT, "Overlay Font"),
+                        FSUI_VSTR("Selects the font used for the performance overlay."), "Main", "ImGuiFixedFont",
+                        ImGuiManager::GetDefaultFixedFontName(), ImGuiManager::GetFixedFontDisplayNames(),
+                        ImGuiManager::GetFixedFontNames(), true, true, [](std::string_view) {
+                          // defer it, since we can't change the fonts while rendering
+                          BeginTransition(LONG_TRANSITION_TIME, []() {
+                            Host::RunOnCoreThread([]() { VideoThread::RunOnThread(&ImGuiManager::UpdateFixedFont); });
+                          });
+                        });
 
   DrawToggleSetting(bsi, FSUI_ICONVSTR(ICON_FA_CIRCLE_EXCLAMATION, "Show Messages"),
                     FSUI_VSTR("Shows on-screen-display messages when events occur. Errors and warnings are still "

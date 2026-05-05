@@ -235,7 +235,7 @@ void FullscreenUI::DrawAchievementsOverlays()
   NotificationLayout layout(g_gpu_settings.achievements_notification_location);
   DrawNotifications(layout);
 
-  if (Achievements::HasActiveGame())
+  if (Achievements::HasActiveGame() && GetCurrentMainWindow() == MainWindowType::None)
   {
     // need to group them together if they're in the same location
     if (g_gpu_settings.achievements_indicator_location != layout.GetLocation())
@@ -1071,7 +1071,7 @@ void FullscreenUI::DrawAchievementsPauseMenuOverlays(float start_pos_y)
   const ImVec2 display_margin = LayoutScale(16.0f, 16.0f);
   const float box_margin = LayoutScale(10.0f);
   const float box_width = LayoutScale(450.0f);
-  const float box_padding = LayoutScale(10.0f);
+  const float box_padding = LayoutScale(12.0f);
   const float box_content_width = box_width - box_padding - box_padding;
   const float box_rounding = LayoutScale(20.0f);
   const u32 box_background_color =
@@ -1531,23 +1531,13 @@ void FullscreenUI::OpenAchievementsWindow()
     return;
   }
 
-  const bool was_paused = System::IsPaused();
-
-  VideoThread::RunOnThread([was_paused]() {
-    Initialize();
-
-    if (!CanCurrentMainWindowStack() || !SetPendingMainWindowSwitch())
-      return;
-
-    PauseForMenuOpen(was_paused, false);
-    ForceKeyNavEnabled();
-    EnqueueSoundEffect(SFX_NAV_ACTIVATE);
-
-    BeginTransition(SHORT_TRANSITION_TIME, &SwitchToAchievements);
+  PauseAndOpenMenuFromCoreThread([]() {
+    BeginTransition(SHORT_TRANSITION_TIME, []() {
+      ForceKeyNavEnabled();
+      EnqueueSoundEffect(SFX_NAV_ACTIVATE);
+      SwitchToAchievements();
+    });
   });
-
-  if (!was_paused)
-    System::PauseSystem(true);
 }
 
 void FullscreenUI::AddSubsetInfo(const rc_client_subset_t* subset)
@@ -2441,23 +2431,13 @@ void FullscreenUI::OpenLeaderboardsWindow()
     return;
   }
 
-  const bool was_paused = System::IsPaused();
-
-  VideoThread::RunOnThread([was_paused]() {
-    Initialize();
-
-    if (!CanCurrentMainWindowStack() || !SetPendingMainWindowSwitch())
-      return;
-
-    PauseForMenuOpen(was_paused, false);
-    ForceKeyNavEnabled();
-    EnqueueSoundEffect(SFX_NAV_ACTIVATE);
-
-    BeginTransition(SHORT_TRANSITION_TIME, &SwitchToLeaderboards);
+  PauseAndOpenMenuFromCoreThread([]() {
+    BeginTransition(SHORT_TRANSITION_TIME, []() {
+      ForceKeyNavEnabled();
+      EnqueueSoundEffect(SFX_NAV_ACTIVATE);
+      SwitchToLeaderboards();
+    });
   });
-
-  if (!was_paused)
-    System::PauseSystem(true);
 }
 
 void FullscreenUI::SwitchToLeaderboards()
