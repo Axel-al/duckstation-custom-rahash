@@ -315,10 +315,6 @@ void FullscreenUI::PauseAndOpenMenuFromCoreThread(void (*callback)())
   // See comment above. We want the video thread to start transitioning before the pause goes through.
   if (!was_paused)
     System::PauseSystem(true);
-
-  s_locals.was_paused_on_quick_menu_open = was_paused;
-  if (!was_paused)
-    Host::RunOnCoreThread([]() { System::PauseSystem(true); });
 }
 
 void FullscreenUI::OpenPauseMenu()
@@ -901,6 +897,9 @@ void FullscreenUI::StartChangeDiscFromFile(bool return_to_game)
 
   OpenFileSelector(FSUI_ICONVSTR(ICON_FA_COMPACT_DISC, "Select Disc Image"), false, std::move(callback),
                    GetDiscImageFilters(), std::string(Path::GetDirectory(VideoThread::GetGamePath())));
+
+  // This can come from the core thread without the menu, so need to to trigger run idle.
+  UpdateRunIdleState();
 }
 
 void FullscreenUI::BeginChangeDiscOnCoreThread(bool return_to_game)
@@ -1000,9 +999,7 @@ void FullscreenUI::BeginChangeDiscOnCoreThread(bool return_to_game)
     }
   }
 
-  VideoThread::RunOnThread([return_to_game]() {
-    StartChangeDiscFromFile(return_to_game);
-  });
+  VideoThread::RunOnThread([return_to_game]() { StartChangeDiscFromFile(return_to_game); });
 }
 
 void FullscreenUI::DoToggleAnalogMode()
