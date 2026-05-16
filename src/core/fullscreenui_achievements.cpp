@@ -221,6 +221,7 @@ void FullscreenUI::ClearAchievementsState()
 
   s_achievements_locals.most_recent_unlock.reset();
   s_achievements_locals.achievement_nearest_completion.reset();
+  s_achievements_locals.most_recent_progress_update.reset();
 
   UpdateAchievementOverlaysRunIdle();
 }
@@ -249,7 +250,7 @@ void FullscreenUI::AddAchievementNotification(std::string key, float duration, s
                                               std::string text, std::string note,
                                               AchievementNotificationNoteType note_type, u16 min_width, bool small_font)
 {
-  const bool prev_had_notifications = s_achievements_locals.notifications.empty();
+  const bool prev_had_notifications = !s_achievements_locals.notifications.empty();
   const Timer::Value current_time = Timer::GetCurrentValue();
 
   if (!key.empty())
@@ -586,22 +587,45 @@ void FullscreenUI::DrawIndicators(NotificationLayout& layout)
       (g_gpu_settings.achievements_challenge_indicator_mode == AchievementChallengeIndicatorMode::TemporaryIcon);
     const float x_advance = image_size + spacing;
     const float total_width = image_size + (static_cast<float>(indicators.size() - 1) * x_advance);
-    ImVec2 current_position = layout.GetFixedPosition(total_width, image_size);
+    bool space_reserved = false;
+    ImVec2 current_position;
 
     for (auto it = indicators.begin(); it != indicators.end();)
     {
       Achievements::ActiveChallengeIndicator& indicator = *it;
-      bool active = indicator.active;
+      bool draw_icon = indicator.active;
       if (use_time_remaining)
       {
         indicator.time_remaining = std::max(indicator.time_remaining - io.DeltaTime, 0.0f);
-        active = (indicator.time_remaining > 0.0f);
+        draw_icon = (draw_icon && indicator.time_remaining > 0.0f);
+
+        // Skip drawing when not visible.
+        if (!draw_icon && indicator.opacity < 0.01f)
+        {
+          if (!indicator.active)
+          {
+            DEV_LOG("Remove non-visible challenge indicator");
+            it = indicators.erase(it);
+          }
+          else
+          {
+            ++it;
+          }
+
+          continue;
+        }
       }
 
-      const float target_opacity = active ? 1.0f : 0.0f;
-      const float rate = active ? CHALLENGE_INDICATOR_FADE_IN_TIME : -CHALLENGE_INDICATOR_FADE_OUT_TIME;
+      const float target_opacity = draw_icon ? 1.0f : 0.0f;
+      const float rate = draw_icon ? CHALLENGE_INDICATOR_FADE_IN_TIME : -CHALLENGE_INDICATOR_FADE_OUT_TIME;
       indicator.opacity =
         (indicator.opacity != target_opacity) ? ImSaturate(indicator.opacity + (io.DeltaTime / rate)) : target_opacity;
+
+      if (!space_reserved)
+      {
+        space_reserved = true;
+        current_position = layout.GetFixedPosition(total_width, image_size);
+      }
 
       GPUTexture* badge = FullscreenUI::GetCachedTextureAsync(indicator.badge_url);
       if (badge)
@@ -612,7 +636,7 @@ void FullscreenUI::DrawIndicators(NotificationLayout& layout)
 
       current_position.x += x_advance;
 
-      if (!indicator.active && indicator.opacity <= 0.01f)
+      if (!indicator.active && indicator.opacity < 0.01f)
       {
         DEV_LOG("Remove challenge indicator");
         it = indicators.erase(it);
@@ -954,6 +978,7 @@ void FullscreenUI::UpdateAchievementsPauseScreenInfo()
   {
     s_achievements_locals.most_recent_unlock.reset();
     s_achievements_locals.achievement_nearest_completion.reset();
+    s_achievements_locals.most_recent_progress_update.reset();
     s_achievements_locals.active_leaderboards.clear();
     return;
   }
@@ -1030,6 +1055,8 @@ void FullscreenUI::UpdateAchievementsPauseScreenInfo()
             active_lbs.erase(active_lbs.begin() + num_active_lbs, active_lbs.end());
 
           PauseMenuLeaderboardInfo& lbinfo = active_lbs.emplace_back();
+          lbinfo.leaderboard_id = leaderboard->id;
+          lbinfo.format = leaderboard->format;
           lbinfo.title = leaderboard->title;
           if (leaderboard->description)
             lbinfo.description = leaderboard->description;
@@ -1121,7 +1148,9 @@ void FullscreenUI::DrawAchievementsPauseMenuOverlays(float start_pos_y)
     dl->AddText(UIStyle.Font, UIStyle.MediumFontSize, UIStyle.BoldFontWeight, text_pos, box_title_text_color,
                 IMSTR_START_END(buffer));
     const float unlocked_fraction =
-      static_cast<float>(summary.num_unlocked_achievements) / static_cast<float>(summary.num_core_achievements);
+      (summary.num_core_achievements > 0) ?
+        (static_cast<float>(summary.num_unlocked_achievements) / static_cast<float>(summary.num_core_achievements)) :
+        0.0f;
     buffer.format("{}%", static_cast<u32>(std::round(unlocked_fraction * 100.0f)));
     text_size = UIStyle.Font->CalcTextSizeA(UIStyle.MediumFontSize, UIStyle.BoldFontWeight, FLT_MAX, 0.0f,
                                             IMSTR_START_END(buffer));

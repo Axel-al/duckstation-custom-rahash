@@ -2735,6 +2735,9 @@ SCPS-10131:
   controllers:
     - AnalogController
     - DigitalController
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   metadata:
     publisher: "Sony"
     developer: "Sony"
@@ -2757,6 +2760,9 @@ SCPS-10132:
   controllers:
     - AnalogController
     - DigitalController
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   metadata:
     publisher: "Sony"
     developer: "Sony"
@@ -16405,7 +16411,7 @@ SLPS-01222:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 4"
@@ -16430,7 +16436,7 @@ SLPS-01223:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 4"
@@ -16455,7 +16461,7 @@ SLPS-00999:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
 SLPS-01510:
   name: "Biohazard 2 - Dual Shock Ver. (Disc 1) (Leon-hen)"
   localizedName: "バイオハザード２　デュアルショックバージョン"
@@ -16467,7 +16473,7 @@ SLPS-01510:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 4"
@@ -16493,7 +16499,7 @@ SLPS-01511:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 4"
@@ -50775,14 +50781,17 @@ SLPS-01518:
     - DigitalController
   traits:
     - DisableAutoAnalogMode # Analog sticks do nothing.
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   codes:
     - SLPS-01518
     - SLPS-91143
     - SLPS-91403
   metadata:
     publisher: "From Software"
-    developer: "From Software, Inc"
-    releaseDate: "2001-11-15"
+    developer: "From Software"
+    releaseDate: "1998-08-13"
     genre: "Adventure"
     languages:
       - Japanese
@@ -50809,8 +50818,8 @@ SLUS-00820:
     displayActiveEndOffset: -8
   metadata:
     publisher: "Agetec"
-    developer: "From Software, Inc"
-    releaseDate: "1999-07-31"
+    developer: "From Software"
+    releaseDate: "1999-07-22"
     genre: "Adventure"
     languages:
       - English
@@ -50828,13 +50837,18 @@ SLPS-02167:
   controllers:
     - AnalogController
     - DigitalController
+  traits:
+    - DisableAutoAnalogMode # Analog sticks do nothing.
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   codes:
     - SLPS-02167
     - SLPS-91425
   metadata:
     publisher: "From Software"
-    developer: "From Liquid Mirror Software"
-    releaseDate: "2001-11-29"
+    developer: "From Software"
+    releaseDate: "1999-08-05"
     genre: "Adventure"
     languages:
       - Japanese
@@ -90089,6 +90103,7 @@ SCES-00510:
 SLPS-00017:
   name: "King's Field"
   localizedName: "キングスフィールド"
+  sortName: "King's Field 1"
   saveName: "King's Field (Japan)"
   controllers:
     - DigitalController
@@ -90293,6 +90308,7 @@ SLPS-91426:
     linkCable: false
 SLPS-91401:
   name: "King's Field [PSOne Books]"
+  sortName: "King's Field 1 [PSOne Books]"
   controllers:
     - DigitalController
   metadata:
@@ -94016,6 +94032,8 @@ SLES-03299:
   controllers:
     - AnalogController
     - DigitalController
+  traits:
+    - ForceRoundTextureCoordinates # Helps texture alignment.
   metadata:
     publisher: "LEGO Media International Inc"
     developer: "Silicon Dreams"
@@ -94036,6 +94054,8 @@ SLES-03306:
   controllers:
     - AnalogController
     - DigitalController
+  traits:
+    - ForceRoundTextureCoordinates # Helps texture alignment.
   metadata:
     publisher: "LEGO Media International Inc"
     developer: "Silicon Dreams"
@@ -94059,6 +94079,8 @@ SLES-03307:
   controllers:
     - AnalogController
     - DigitalController
+  traits:
+    - ForceRoundTextureCoordinates # Helps texture alignment.
   metadata:
     publisher: "LEGO Media International Inc"
     developer: "Silicon Dreams"
@@ -94079,6 +94101,8 @@ SLES-03308:
   controllers:
     - AnalogController
     - DigitalController
+  traits:
+    - ForceRoundTextureCoordinates # Helps texture alignment.
   metadata:
     publisher: "LEGO Media International Inc"
     developer: "Silicon Dreams"
@@ -94102,6 +94126,8 @@ SLUS-01246:
   controllers:
     - AnalogController
     - DigitalController
+  traits:
+    - ForceRoundTextureCoordinates # Helps texture alignment.
   metadata:
     publisher: "LEGO Media International Inc"
     developer: "Silicon Dreams"
@@ -94122,6 +94148,8 @@ SLES-03305:
   controllers:
     - AnalogController
     - DigitalController
+  traits:
+    - ForceRoundTextureCoordinates # Helps texture alignment.
   metadata:
     publisher: "LEGO Media International Inc"
     developer: "Silicon Dreams"
@@ -94142,6 +94170,8 @@ SLES-03300:
   controllers:
     - AnalogController
     - DigitalController
+  traits:
+    - ForceRoundTextureCoordinates # Helps texture alignment.
   metadata:
     publisher: "LEGO Media International Inc"
     developer: "Silicon Dreams"
@@ -130178,6 +130208,7 @@ SLUS-00341:
     linkCable: false
 SLUS-00339:
   name: "Persona"
+  sortName: "Persona 1"
   saveName: "Persona (USA)"
   compatibility:
     rating: NoIssues
@@ -130205,12 +130236,16 @@ SLUS-00339:
 SLPM-86967:
   name: "Persona 2 - Batsu - Eternal Punishment (Disc 1)"
   localizedName: "ペルソナ２　罰　－ＥＴＥＲＮＡＬ　ＰＵＮＩＳＨＭＥＮＴ－ (DISC 1)"
+  sortName: "Persona 2b (Disc 1)"
   saveName: "Persona 2 - Batsu - Eternal Punishment (Japan) (Disc 1)"
   controllers:
     - AnalogController
     - DigitalController
   traits:
     - ForcePGXPCPUMode
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   codes:
     - SLPM-86967
     - SLPS-02825
@@ -130231,12 +130266,16 @@ SLPM-86967:
 SLPS-02785:
   name: "Persona 2 - Batsu - Eternal Punishment (Disc 1) (Deluxe Pack)"
   localizedName: "ペルソナ２　罰"
+  sortName: "Persona 2b (Disc 1) (Deluxe Pack)"
   saveName: "Persona 2 - Batsu - Eternal Punishment (Japan) (Disc 1) (Deluxe Pack)"
   controllers:
     - AnalogController
     - DigitalController
   traits:
     - ForcePGXPCPUMode
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   metadata:
     publisher: "Atlus Co"
     developer: "Atlus Co"
@@ -130254,6 +130293,7 @@ SLPS-02785:
 SLPS-02826:
   name: "Persona 2 - Batsu - Eternal Punishment (Disc 2) (Sumaru TV Special Preview Disc)"
   localizedName: "ペルソナ２　罰　－ＥＴＥＲＮＡＬ　ＰＵＮＩＳＨＭＥＮＴ－"
+  sortName: "Persona 2b (Disc 2)"
   saveName: "Persona 2 - Batsu - Eternal Punishment (Japan) (Disc 2) (Sumaru TV Special Preview Disc)"
   controllers:
     - AnalogController
@@ -130277,6 +130317,7 @@ SLPS-02826:
 SLPS-02786:
   name: "Persona 2 - Batsu - Eternal Punishment (Disc 2) (Sumaru TV Special Preview Disc) (Deluxe Pack)"
   localizedName: "ペルソナ２　罰"
+  sortName: "Persona 2b (Disc 2) (Deluxe Pack)"
   saveName: "Persona 2 - Batsu - Eternal Punishment (Japan) (Disc 2) (Sumaru TV Special Preview Disc) (Deluxe Pack)"
   controllers:
     - AnalogController
@@ -130299,6 +130340,7 @@ SLPS-02786:
     linkCable: false
 SCPS-45495:
   name: "Persona 2 - Eternal Punishment"
+  sortName: "Persona 2b"
   controllers:
     - AnalogController
     - DigitalController
@@ -130323,6 +130365,7 @@ SCPS-45495:
     linkCable: false
 SLUS-01158:
   name: "Persona 2 - Eternal Punishment"
+  sortName: "Persona 2b"
   saveName: "Persona 2 - Eternal Punishment (USA)"
   compatibility:
     rating: NoIssues
@@ -130332,6 +130375,9 @@ SLUS-01158:
     - DigitalController
   traits:
     - ForcePGXPCPUMode
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   metadata:
     publisher: "Atlus Co"
     developer: "Atlus Co"
@@ -130348,12 +130394,11 @@ SLUS-01158:
     linkCable: false
 SLUS-01339:
   name: "Persona 2 - Eternal Punishment (Bonus Disc)"
+  sortName: "Persona 2b (Bonus Disc)"
   saveName: "Persona 2 - Eternal Punishment (USA) (Bonus Disc)"
   controllers:
     - AnalogController
     - DigitalController
-  traits:
-    - ForcePGXPCPUMode
   metadata:
     publisher: "Atlus Co"
     developer: "Atlus Co"
@@ -130370,6 +130415,7 @@ SLUS-01339:
     linkCable: false
 SCPS-45410:
   name: "Persona 2 - Innocent Sin (aka Persona 2 - Innocent Sin / Persona 2 - Tsumi)"
+  sortName: "Persona 2a"
   controllers:
     - AnalogController
     - DigitalController
@@ -130393,6 +130439,7 @@ SCPS-45410:
 SLPS-02100:
   name: "Persona 2 - Tsumi - Innocent Sin"
   localizedName: "ペルソナ２　罪"
+  sortName: "Persona 2a"
   saveName: "Persona 2 - Tsumi - Innocent Sin (Japan)"
   compatibility:
     rating: NoIssues
@@ -130403,6 +130450,9 @@ SLPS-02100:
   traits:
     - DisableAutoAnalogMode # Analog sticks do nothing.
     - ForcePGXPCPUMode
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   metadata:
     publisher: "Atlus Co"
     developer: "Atlus Co"
@@ -130420,6 +130470,7 @@ SLPS-02100:
 SLPS-01923:
   name: "Persona 2 - Tsumi - Innocent Sin (Demo)"
   localizedName: "ペルソナ２　罪"
+  sortName: "Persona 2a (Demo)"
   saveName: "Persona 2 - Tsumi - Innocent Sin (Japan) (Demo)"
   controllers:
     - DigitalController
@@ -130442,6 +130493,7 @@ SLPS-01923:
 SLPS-91211:
   name: "Persona 2 - Tsumi - Innocent Sin"
   localizedName: "ペルソナ２　罪"
+  sortName: "Persona 2a (Rev 1)"
   saveName: "Persona 2 - Tsumi - Innocent Sin (Japan) (Rev 1)"
   controllers:
     - AnalogController
@@ -130449,6 +130501,9 @@ SLPS-91211:
   traits:
     - DisableAutoAnalogMode # Analog sticks do nothing.
     - ForcePGXPCPUMode
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   metadata:
     publisher: "Atlus Co"
     developer: "Atlus Co"
@@ -133618,7 +133673,7 @@ SLPM-86048:
   metadata:
     publisher: "Konami"
     developer: "KCEO"
-    releaseDate: "2003-07-08"
+    releaseDate: "1996-01-19"
     genre: "Adventure / Action"
     languages:
       - Japanese
@@ -133646,7 +133701,7 @@ SLPM-86049:
   metadata:
     publisher: "Konami"
     developer: "KCEO"
-    releaseDate: "2003-07-08"
+    releaseDate: "1996-01-19"
     genre: "Adventure / Action"
     languages:
       - Japanese
@@ -142230,7 +142285,7 @@ SLES-00972:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142254,7 +142309,7 @@ SLES-10972:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142278,7 +142333,7 @@ SLED-00977:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
 SLES-00973:
   name: "Resident Evil 2 (Disc 1)"
   saveName: "Resident Evil 2 (France) (Disc 1)"
@@ -142288,7 +142343,7 @@ SLES-00973:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142312,7 +142367,7 @@ SLES-10973:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142336,7 +142391,7 @@ SLES-00974:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142360,7 +142415,7 @@ SLES-10974:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142384,7 +142439,7 @@ SLES-00975:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142408,7 +142463,7 @@ SLES-10975:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142435,7 +142490,7 @@ SLES-00976:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142462,7 +142517,7 @@ SLES-10976:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Virgin Interactive"
     developer: "Capcom Production Studio 4"
@@ -142486,7 +142541,7 @@ SLUS-80421:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   codes:
     - SLUS-80421
     - SLUS-90009
@@ -142502,7 +142557,7 @@ SLUS-00421:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 4"
@@ -142529,7 +142584,7 @@ SLUS-00592:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 4"
@@ -142557,7 +142612,7 @@ SLUS-00748:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 4"
@@ -142585,7 +142640,7 @@ SLUS-00756:
     - DisableWidescreen
     - ForceRecompilerICache # Other REs need it, probably the same here.
   settings:
-    cdromMaxReadSpeedupCycles: 70000 # Randomly hangs after certain door transitions.
+    cdromMaxReadSpeedupCycles: 65000 # Hangs on boot and after certain door transitions.
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 4"
@@ -151324,7 +151379,7 @@ SLPS-01420:
     - DisableAutoAnalogMode # Analog sticks do nothing.
   metadata:
     publisher: "From Software"
-    developer: "From Software, Inc"
+    developer: "From Software"
     releaseDate: "1998-06-25"
     genre: "First Person Shooter / RPG"
     languages:
@@ -151349,7 +151404,7 @@ SLUS-00863:
     - DisableAutoAnalogMode # Analog sticks do nothing.
   metadata:
     publisher: "Agetec Inc"
-    developer: "From Software, Inc"
+    developer: "From Software"
     releaseDate: "1999-11-10"
     genre: "First Person Shooter / RPG"
     languages:
@@ -152168,6 +152223,9 @@ SLPS-03170:
     - DigitalController
   traits:
     - DisableAutoAnalogMode # Analog sticks do nothing.
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   metadata:
     publisher: "Atlus Co"
     developer: "Atlus Co"
@@ -163246,7 +163304,7 @@ SLPS-02117:
     - DigitalController
   metadata:
     publisher: "From Software"
-    developer: "From Liquid Mirror Software"
+    developer: "From Software"
     releaseDate: "1999-06-16"
     genre: "Action"
     languages:

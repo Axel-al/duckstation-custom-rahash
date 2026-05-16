@@ -907,19 +907,8 @@ void QtHost::ApplyMigrations()
   const std::string achievement_icons_directory = Path::Combine(EmuFolders::Cache, "achievement_images");
   if (FileSystem::DirectoryExists(achievement_icons_directory.c_str()))
   {
-    Error error;
-
     // If it's empty, just delete it.
-    if (FileSystem::IsDirectoryEmpty(achievement_icons_directory.c_str()))
-    {
-      if (!FileSystem::DeleteDirectory(achievement_icons_directory.c_str(), &error))
-      {
-        QMessageBox::critical(nullptr, "Error"_L1,
-                              QString::fromStdString(fmt::format(
-                                "Failed to delete empty achievement icons directory: {}", error.GetDescription())));
-      }
-    }
-    else
+    if (!FileSystem::IsDirectoryEmpty(achievement_icons_directory.c_str()))
     {
       QMessageBox mb(
         QMessageBox::Question, "DuckStation"_L1,
@@ -932,6 +921,7 @@ void QtHost::ApplyMigrations()
       mb.setWindowIcon(GetAppIcon());
       if (mb.exec() == QMessageBox::Yes)
       {
+        Error error;
         if (!FileSystem::RecursiveDeleteDirectory(achievement_icons_directory.c_str(), &error))
         {
           QMessageBox::critical(nullptr, "Error"_L1,
@@ -2054,18 +2044,13 @@ void CoreThread::processAuxiliaryRenderWindowInputEvent(void* userdata, quint32 
   });
 }
 
-void CoreThread::doBackgroundControllerPoll()
-{
-  Core::IdleUpdate();
-}
-
 void CoreThread::createBackgroundControllerPollTimer()
 {
   DebugAssert(!m_background_controller_polling_timer);
   m_background_controller_polling_timer = new QTimer(this);
   m_background_controller_polling_timer->setSingleShot(false);
   m_background_controller_polling_timer->setTimerType(Qt::CoarseTimer);
-  connect(m_background_controller_polling_timer, &QTimer::timeout, this, &CoreThread::doBackgroundControllerPoll);
+  connect(m_background_controller_polling_timer, &QTimer::timeout, &Core::IdleUpdate);
 }
 
 void CoreThread::destroyBackgroundControllerPollTimer()
