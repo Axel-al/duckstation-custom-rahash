@@ -22650,6 +22650,8 @@ SCUS-94426:
     - NeGcon
     - JogCon
   settings:
+    displayActiveStartOffset: 7
+    displayActiveEndOffset: 7
     gpuPGXPPreserveProjFP: false # Causes holes in geometry.
   metadata:
     publisher: "Sony"
@@ -104499,6 +104501,8 @@ SLES-01064:
   traits:
     - DisableTrueColor
     - DisableWidescreen # No effect.
+  settings:
+    cdromMaxReadSpeedupCycles: 60000
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 2 / Laguna videogames"
@@ -104524,6 +104528,8 @@ SLUS-00453:
   traits:
     - DisableTrueColor
     - DisableWidescreen # No effect.
+  settings:
+    cdromMaxReadSpeedupCycles: 60000
   metadata:
     publisher: "Capcom"
     developer: "Capcom Production Studio 2 / Laguna videogames"
@@ -138467,6 +138473,9 @@ SLUS-00797:
     - DigitalController
     - NeGcon
     - JogCon
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   metadata:
     publisher: "Namco"
     developer: "Namco"
@@ -201194,6 +201203,9 @@ SLUS-01411:
     - DigitalController
   traits:
     - DisableAutoAnalogMode # Analog sticks do nothing.
+  settings:
+    displayActiveStartOffset: -8
+    displayActiveEndOffset: -8
   metadata:
     publisher: "Konami"
     developer: "Konami"

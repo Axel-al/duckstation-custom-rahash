@@ -58,22 +58,23 @@ bool DiscordPresence::OpenDiscordRPC(Error* error)
   if (s_locals.rpc_library.IsOpen())
     return true;
 
-  const std::string libname = DynamicLibrary::GetVersionedFilename("discord-rpc");
-  if (!s_locals.rpc_library.Open(libname.c_str(), error))
+  if (!s_locals.rpc_library.Open(DynamicLibrary::GetBundledLibraryPath("discord-rpc").c_str(), error))
   {
     Error::AddPrefix(error, "Failed to load discord-rpc: ");
     return false;
   }
 
-#define LOAD_FUNC(F)                                                                                                   \
-  if (!s_locals.rpc_library.GetSymbol(#F, &s_locals.rpc_##F))                                                          \
-  {                                                                                                                    \
-    Error::SetStringFmt(error, "Failed to find function {}", #F);                                                      \
-    CloseDiscordRPC();                                                                                                 \
-    return false;                                                                                                      \
+  static const DynamicLibrary::SymbolTable symbols[] = {
+#define SYMBOL_ENTRY(F) {#F, reinterpret_cast<void**>(&s_locals.rpc_##F)},
+    DISCORD_RPC_FUNCTIONS(SYMBOL_ENTRY)
+#undef SYMBOL_ENTRY
+  };
+
+  if (!s_locals.rpc_library.ResolveSymbols(symbols, std::size(symbols), error))
+  {
+    CloseDiscordRPC();
+    return false;
   }
-  DISCORD_RPC_FUNCTIONS(LOAD_FUNC)
-#undef LOAD_FUNC
 
   return true;
 }
