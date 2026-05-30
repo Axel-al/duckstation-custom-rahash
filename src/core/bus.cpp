@@ -1609,23 +1609,21 @@ void Bus::EXP2WriteHandler(VirtualMemoryAddress address, u32 value)
   {
     DEV_LOG("BIOS POST2 status: {:02X}", value & UINT32_C(0x0F));
   }
-#if 0
-  // TODO: Put behind configuration variable
-  else if (offset == 0x81)
+  else if (offset >= 0x81 && offset <= 0x82 && g_settings.pcsx_expansion_region_enable)
   {
-    Log_WarningPrint("pcsx_debugbreak()");
-    Host::ReportErrorAsync("Error", "pcsx_debugbreak()");
-    System::PauseSystem(true);
-    CPU::ExitExecution();
+    if (offset == 0x81)
+    {
+      WARNING_LOG("pcsx_debugbreak()");
+      System::PauseSystem(true);
+      CPU::ExitExecution();
+    }
+    else // if (offset == 0x82)
+    {
+      WARNING_LOG("pcsx_exit() with status 0x{:02X}", value & UINT32_C(0xFF));
+      System::ShutdownSystem(false);
+      CPU::ExitExecution();
+    }
   }
-  else if (offset == 0x82)
-  {
-    Log_WarningFmt("pcsx_exit() with status 0x{:02X}", value & UINT32_C(0xFF));
-    Host::ReportErrorAsync("Error", fmt::format("pcsx_exit() with status 0x{:02X}", value & UINT32_C(0xFF)));
-    System::ShutdownSystem(false);
-    CPU::ExitExecution();
-  }
-#endif
   else
   {
     WARNING_LOG("EXP2 write: 0x{:08X} <- 0x{:08X}", address, value);
@@ -1891,7 +1889,7 @@ template<MemoryAccessSize size>
 u32 Bus::HWHandlers::GPURead(PhysicalMemoryAddress address)
 {
   const u32 offset = address & GPU_MASK;
-  u32 value = g_gpu.ReadRegister(FIXUP_WORD_OFFSET(size, offset));
+  u32 value = GPU::ReadRegister(FIXUP_WORD_OFFSET(size, offset));
   value = FIXUP_WORD_READ_VALUE(size, offset, value);
   BUS_CYCLES(2);
   return value;
@@ -1901,7 +1899,7 @@ template<MemoryAccessSize size>
 void Bus::HWHandlers::GPUWrite(PhysicalMemoryAddress address, u32 value)
 {
   const u32 offset = address & GPU_MASK;
-  g_gpu.WriteRegister(FIXUP_WORD_OFFSET(size, offset), FIXUP_WORD_WRITE_VALUE(size, offset, value));
+  GPU::WriteRegister(FIXUP_WORD_OFFSET(size, offset), FIXUP_WORD_WRITE_VALUE(size, offset, value));
 }
 
 template<MemoryAccessSize size>

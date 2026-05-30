@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2019-2024 Connor McLaughlin <stenzek@gmail.com>
+// SPDX-FileCopyrightText: 2019-2026 Connor McLaughlin <stenzek@gmail.com>
 // SPDX-License-Identifier: CC-BY-NC-ND-4.0
 
 #include "imgui_overlays.h"
@@ -30,6 +30,7 @@
 #include "util/translation.h"
 
 #include "common/align.h"
+#include "common/assert.h"
 #include "common/error.h"
 #include "common/file_system.h"
 #include "common/gsvector.h"
@@ -102,7 +103,10 @@ struct DebugWindowInfo
 } // namespace
 
 static void FormatProcessorStat(SmallStringBase& text, double usage, double time);
-static void SetStatusIndicatorIcons(SmallStringBase& text, bool paused);
+static void DrawPerformanceStat(ImDrawList* dl, float& position_y, ImFont* font, float size, float alt_weight,
+                                ImU32 alt_color, float rbounds, std::string_view text);
+static void DrawStatusIndicators(ImDrawList* dl, float& position_y, ImFont* font, float size, float rbounds,
+                                 SmallStringBase& text, bool paused);
 static void DrawPerformanceOverlay(const GPUBackend* gpu, float& position_y, float scale, float margin, float spacing);
 static void DrawMediaCaptureOverlay(float& position_y, float scale, float margin, float spacing);
 static void DrawFrameTimeOverlay(float& position_y, float scale, float margin, float spacing);
@@ -118,7 +122,7 @@ static constexpr const std::array<DebugWindowInfo, NUM_DEBUG_WINDOWS> s_debug_wi
   {"Freecam", "Free Camera", ":icons/applications-system.png", &GTE::DrawFreecamWindow, 510, 500},
   {"SPU", "SPU State", ":icons/applications-system.png", &SPU::DrawDebugStateWindow, 820, 950},
   {"CDROM", "CD-ROM State", ":icons/applications-system.png", &CDROM::DrawDebugWindow, 820, 555},
-  {"GPU", "GPU State", ":icons/applications-system.png", [](float sc) { g_gpu.DrawDebugStateWindow(sc); }, 450, 550},
+  {"GPU", "GPU State", ":icons/applications-system.png", &GPU::DrawDebugStateWindow, 450, 550},
   {"DMA", "DMA State", ":icons/applications-system.png", &DMA::DrawDebugStateWindow, 860, 180},
   {"MDEC", "MDEC State", ":icons/applications-system.png", &MDEC::DrawDebugStateWindow, 300, 350},
   {"Timers", "Timers State", ":icons/applications-system.png", &Timers::DrawDebugStateWindow, 800, 95},
@@ -267,7 +271,8 @@ void ImGuiManager::FormatProcessorStat(SmallStringBase& text, double usage, doub
     text.append_format("{:.1f}% ({:.2f}ms)", usage, time);
 }
 
-void ImGuiManager::SetStatusIndicatorIcons(SmallStringBase& text, bool paused)
+void ImGuiManager::DrawStatusIndicators(ImDrawList* dl, float& position_y, ImFont* font, float size, float rbounds,
+                                        SmallStringBase& text, bool paused)
 {
   text.clear();
   if (GTE::IsFreecamEnabled())
@@ -286,10 +291,22 @@ void ImGuiManager::SetStatusIndicatorIcons(SmallStringBase& text, bool paused)
 
   if (!text.empty() && text.back() == ' ')
     text.pop_back();
+
+  if (text.empty())
+    return;
+
+  constexpr ImU32 color = IM_COL32(255, 255, 255, 255);
+  constexpr float default_weight = 0.0f;
+  const ImVec2 text_size = font->CalcTextSizeA(size, default_weight, FLT_MAX, 0.0f, IMSTR_START_END(text));
+
+  const ImVec2 position = ImVec2(rbounds - text_size.x, position_y);
+  dl->AddText(font, size, default_weight, position, color, IMSTR_START_END(text), 0.0f, nullptr);
+
+  position_y += text_size.y;
 }
 
-static void DrawPerformanceStat(ImDrawList* dl, float& position_y, ImFont* font, float size, float alt_weight,
-                                ImU32 alt_color, float rbounds, std::string_view text)
+void ImGuiManager::DrawPerformanceStat(ImDrawList* dl, float& position_y, ImFont* font, float size, float alt_weight,
+                                       ImU32 alt_color, float rbounds, std::string_view text)
 {
   static constexpr auto find_control_char = [](const std::string_view& sv, std::string_view::size_type pos) {
     const size_t len = sv.length();
@@ -381,7 +398,7 @@ void ImGuiManager::DrawPerformanceOverlay(const GPUBackend* gpu, float& position
     return;
   }
 
-  const float status_size = std::ceil(40.0f * scale);
+  const float status_size = std::ceil(50.0f * scale);
   ImFont* const fixed_font = ImGuiManager::GetFixedFont();
   const float fixed_font_size = ImGuiManager::GetFixedFontSize();
   ImFont* ui_font = ImGuiManager::GetTextFont();
@@ -443,10 +460,10 @@ void ImGuiManager::DrawPerformanceOverlay(const GPUBackend* gpu, float& position
     {
       const u32 resolution_scale = gpu->GetResolutionScale();
       const bool pgxp = gpu->IsUsingHardwareBackend() && g_gpu_settings.gpu_pgxp_enable;
-      const auto [display_width, display_height] = g_gpu.GetFullDisplayResolution(); // NOTE: Racey read.
-      const bool interlaced = g_gpu.IsInterlacedDisplayEnabled();
-      const bool progressive_forced = g_gpu.IsProgressiveDisplayScanForced();
-      const bool pal = g_gpu.IsInPALMode();
+      const auto [display_width, display_height] = GPU::GetFullDisplayResolution(); // NOTE: Racey read.
+      const bool interlaced = GPU::IsInterlacedDisplayEnabled();
+      const bool progressive_forced = GPU::IsProgressiveDisplayScanForced();
+      const bool pal = GPU::IsInPALMode();
       text.format("{}x{} " BOLD("{} {}") " | {}x " BOLD("IR") "{}", display_width * resolution_scale,
                   display_height * resolution_scale, pal ? "PAL" : "NTSC",
                   interlaced ? "Interlaced" : (progressive_forced ? "Forced-Progressive" : "Progressive"),
@@ -544,15 +561,11 @@ void ImGuiManager::DrawPerformanceOverlay(const GPUBackend* gpu, float& position
       DrawFrameTimeOverlay(position_y, scale, margin, spacing);
 
     if (g_gpu_settings.display_show_status_indicators)
-    {
-      SetStatusIndicatorIcons(text, false);
-      DrawPerformanceStat(dl, position_y, ui_font, status_size, 0.0f, 0, rbound, text);
-    }
+      DrawStatusIndicators(dl, position_y, ui_font, status_size, rbound, text, false);
   }
   else if (g_gpu_settings.display_show_status_indicators)
   {
-    SetStatusIndicatorIcons(text, true);
-    DrawPerformanceStat(dl, position_y, ui_font, status_size, 0.0f, 0, rbound, text);
+    DrawStatusIndicators(dl, position_y, ui_font, status_size, rbound, text, true);
   }
 
 #undef COLOR

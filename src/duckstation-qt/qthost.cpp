@@ -11,6 +11,7 @@
 #include "qtwindowinfo.h"
 #include "settingswindow.h"
 #include "setupwizarddialog.h"
+#include "svgwidget.h"
 
 #include "core/achievements.h"
 #include "core/bus.h"
@@ -62,6 +63,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QTimer>
 #include <QtCore/QTranslator>
+#include <QtCore/QtPlugin>
 #include <QtGui/QClipboard>
 #include <QtGui/QKeyEvent>
 #include <algorithm>
@@ -95,6 +97,9 @@ QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU", "Quit %1")
 QT_TRANSLATE_NOOP("MAC_APPLICATION_MENU", "About %1")
 #endif
 
+Q_IMPORT_PLUGIN(SVGIconEnginePlugin);
+Q_IMPORT_PLUGIN(SVGImageHandlerPlugin);
+
 static constexpr u32 SETTINGS_SAVE_DELAY = 1000;
 
 /// Interval at which the controllers are polled when the system is not active.
@@ -103,6 +108,9 @@ static constexpr int BACKGROUND_CONTROLLER_POLLING_INTERVAL_WITHOUT_DEVICES = 10
 
 /// Poll at half the vsync rate for FSUI to reduce the chance of getting a press+release in the same frame.
 static constexpr int FULLSCREEN_UI_CONTROLLER_POLLING_INTERVAL = 8;
+
+/// Poll at 10ms when downloads are active to ensure the speed is not impacted.
+static constexpr int DOWNLOAD_CONTROLLER_POLLING_INTERVAL = 10;
 
 /// Poll at 1ms when running GDB server. We can get rid of this once we move networking to its own thread.
 static constexpr int GDB_SERVER_POLLING_INTERVAL = 1;
@@ -269,6 +277,7 @@ bool QtHost::EarlyProcessStartup()
     icon_theme_search_paths.emplace_back(":/icons"_L1);
   icon_theme_search_paths.emplace_back(":/standard-icons"_L1);
   QIcon::setThemeSearchPaths(icon_theme_search_paths);
+  QIcon::setThemeName("monochrome");
   return true;
 }
 
@@ -735,35 +744,30 @@ void QtHost::DownloadFile(QWidget* parent, std::string url, std::string path,
 
   QtAsyncTaskWithProgressDialog::create(
     parent, TRANSLATE_SV("QtHost", "File Download"), status_text, false, true, 0, 0, 0.0f, true,
-    [url = std::move(url), path = std::move(path),
+    [parent, url = std::move(url), path = std::move(path),
      completion_callback = std::move(completion_callback)](ProgressCallback* const progress) mutable {
       Error error;
       bool result = false;
-      if (const auto downloader = HTTPCache::GetDownloader(&error))
-      {
-        result = true;
-        downloader->CreateRequest(
-          std::move(url),
-          [&result, &error, &path](s32 status_code, const Error& http_error, const std::string&,
-                                   std::vector<u8> hdata) {
-            if (status_code != HTTPDownloader::HTTP_STATUS_OK)
-            {
-              error.SetString(http_error.GetDescription());
-              return;
-            }
-            else if (hdata.empty())
-            {
-              error.SetStringView(TRANSLATE_SV("QtHost", "Download failed: Data is empty."));
-              return;
-            }
+      HTTPDownloader::CreateRequest(
+        std::move(url), parent,
+        [&result, &error, &path](s32 status_code, Error& http_error, std::string&, std::vector<u8>& hdata) {
+          if (status_code != HTTPDownloader::HTTP_STATUS_OK)
+          {
+            error.SetString(http_error.GetDescription());
+            return;
+          }
+          else if (hdata.empty())
+          {
+            error.SetStringView(TRANSLATE_SV("QtHost", "Download failed: Data is empty."));
+            return;
+          }
 
-            result = FileSystem::WriteBinaryFile(path.c_str(), hdata, &error);
-          },
-          progress);
-      }
+          result = FileSystem::WriteBinaryFile(path.c_str(), hdata, &error);
+        },
+        progress);
 
       // Block until completion.
-      HTTPCache::WaitForAllRequests();
+      HTTPDownloader::WaitForAllRequestsFromOwner(parent);
 
       QtAsyncTaskWithProgressDialog::CompletionCallback ret;
       if (completion_callback)
@@ -2110,10 +2114,25 @@ int CoreThread::getBackgroundControllerPollInterval() const
 
   if (m_video_thread_run_idle)
     return FULLSCREEN_UI_CONTROLLER_POLLING_INTERVAL;
+  else if (m_http_downloader_active)
+    return DOWNLOAD_CONTROLLER_POLLING_INTERVAL;
   else if (InputManager::GetPollableDeviceCount() > 0)
     return BACKGROUND_CONTROLLER_POLLING_INTERVAL_WITH_DEVICES;
   else
     return BACKGROUND_CONTROLLER_POLLING_INTERVAL_WITHOUT_DEVICES;
+}
+
+void CoreThread::setHTTPDownloaderActive(bool active)
+{
+  if (!isCurrentThread())
+  {
+    QMetaObject::invokeMethod(this, &CoreThread::setHTTPDownloaderActive, Qt::QueuedConnection, active);
+    return;
+  }
+
+  DEV_LOG("HTTP Downloader now {}", active ? "active" : "inactive");
+  m_http_downloader_active = active;
+  updateBackgroundControllerPollInterval();
 }
 
 void CoreThread::setVideoThreadRunIdle(bool active)
@@ -2148,6 +2167,11 @@ void CoreThread::updateFullscreenUITheme()
   // don't bother if nothing is running
   if (VideoThread::IsFullscreenUIRequested() || VideoThread::IsGPUBackendRequested())
     VideoThread::RunOnThread(&FullscreenUI::UpdateTheme);
+}
+
+void Host::OnHTTPDownloaderActiveChanged(bool active)
+{
+  g_core_thread->setHTTPDownloaderActive(active);
 }
 
 void CoreThread::stop()
@@ -2300,8 +2324,9 @@ void Host::ReportStatusMessage(std::string_view message)
   emit g_core_thread->statusMessage(QtUtils::StringViewToQString(message));
 }
 
-void Host::ConfirmMessageAsync(std::string_view title, std::string_view message, ConfirmMessageAsyncCallback callback,
-                               std::string_view yes_text, std::string_view no_text)
+void Host::ConfirmMessageAsync(std::string_view icon, std::string_view title, std::string_view message,
+                               ConfirmMessageAsyncCallback callback, std::string_view yes_text,
+                               std::string_view no_text)
 {
   INFO_LOG("ConfirmMessageAsync({}, {})", title, message);
 
@@ -2314,9 +2339,10 @@ void Host::ConfirmMessageAsync(std::string_view title, std::string_view message,
   // Ensure it always comes from the CPU thread.
   if (!g_core_thread->isCurrentThread())
   {
-    Host::RunOnCoreThread([title = std::string(title), message = std::string(message), callback = std::move(callback),
-                           yes_text = std::string(yes_text), no_text = std::string(no_text)]() mutable {
-      ConfirmMessageAsync(title, message, std::move(callback));
+    Host::RunOnCoreThread([title = std::string(title), icon = std::string(icon), message = std::string(message),
+                           callback = std::move(callback), yes_text = std::string(yes_text),
+                           no_text = std::string(no_text)]() mutable {
+      ConfirmMessageAsync(icon, title, message, std::move(callback), yes_text, no_text);
     });
     return;
   }
@@ -2329,7 +2355,7 @@ void Host::ConfirmMessageAsync(std::string_view title, std::string_view message,
   // Use FSUI if we're ingame.
   if (System::IsValid() || g_core_thread->isFullscreenUIStarted())
   {
-    VideoThread::RunOnThread([title = std::string(title), message = std::string(message),
+    VideoThread::RunOnThread([title = std::string(title), icon = std::string(icon), message = std::string(message),
                               callback = std::move(callback), yes_text = std::string(yes_text),
                               no_text = std::string(no_text), needs_pause]() mutable {
       // Need to reset run idle state _again_ after displaying.
@@ -2345,8 +2371,13 @@ void Host::ConfirmMessageAsync(std::string_view title, std::string_view message,
         callback(result);
       };
 
+      if (icon.empty())
+        icon = ICON_EMOJI_QUESTION_MARK;
+      else if (StringUtil::GetUTF8CharacterCount(icon) > 1 && !Path::IsAbsolute(icon))
+        icon = QtHost::GetResourcePath(icon, true);
+
       FullscreenUI::Initialize();
-      FullscreenUI::OpenConfirmMessageDialog(ICON_EMOJI_QUESTION_MARK, std::move(title), std::move(message),
+      FullscreenUI::OpenConfirmMessageDialog(std::move(icon), std::move(title), std::move(message),
                                              std::move(final_callback), fmt::format(ICON_FA_CHECK " {}", yes_text),
                                              fmt::format(ICON_FA_XMARK " {}", no_text));
       FullscreenUI::UpdateRunIdleState();
@@ -2354,15 +2385,22 @@ void Host::ConfirmMessageAsync(std::string_view title, std::string_view message,
   }
   else
   {
+    QString qicon;
+    if (!icon.empty())
+      qicon = Path::IsAbsolute(icon) ? QtUtils::StringViewToQString(icon) : QtHost::GetResourceQPath(icon, true);
+
     // Otherwise, use the desktop UI.
-    Host::RunOnUIThread([title = QtUtils::StringViewToQString(title), message = QtUtils::StringViewToQString(message),
-                         callback = std::move(callback), yes_text = QtUtils::StringViewToQString(yes_text),
+    Host::RunOnUIThread([qicon = std::move(qicon), title = QtUtils::StringViewToQString(title),
+                         message = QtUtils::StringViewToQString(message), callback = std::move(callback),
+                         yes_text = QtUtils::StringViewToQString(yes_text),
                          no_text = QtUtils::StringViewToQString(no_text), needs_pause]() mutable {
       auto lock = g_main_window->pauseAndLockSystem();
 
       QWidget* const dialog_parent = lock.getDialogParent();
       QMessageBox* const msgbox =
         QtUtils::NewMessageBox(dialog_parent, QMessageBox::Question, title, message, QMessageBox::NoButton);
+      if (!qicon.isEmpty())
+        msgbox->setIconPixmap(SVGWidget::renderSVGToPixmap(qicon, QSize(64, 64), msgbox->devicePixelRatio(), QColor()));
 
       QPushButton* const yes_button = msgbox->addButton(yes_text, QMessageBox::AcceptRole);
       msgbox->addButton(no_text, QMessageBox::RejectRole);
@@ -2755,11 +2793,11 @@ InputDeviceListModel::~InputDeviceListModel() = default;
 QIcon InputDeviceListModel::getIconForKey(const InputBindingKey& key)
 {
   if (key.source_type == InputSourceType::Keyboard)
-    return QIcon::fromTheme("keyboard-line"_L1);
+    return QIcon(":/icons/monochrome/svg/keyboard-line.svg"_L1);
   else if (key.source_type == InputSourceType::Pointer)
-    return QIcon::fromTheme("mouse-line"_L1);
+    return QIcon(":/icons/monochrome/svg/mouse-line.svg"_L1);
   else
-    return QIcon::fromTheme("controller-line"_L1);
+    return QIcon(":/icons/monochrome/svg/controller-line.svg"_L1);
 }
 
 QString InputDeviceListModel::getDeviceName(const InputBindingKey& key)
@@ -3103,7 +3141,7 @@ void CoreThread::updatePerformanceCounters(const GPUBackend* gpu_backend)
   if (gpu_backend)
   {
     const u32 render_scale = gpu_backend->GetResolutionScale();
-    std::tie(render_width, render_height) = g_gpu.GetFullDisplayResolution();
+    std::tie(render_width, render_height) = GPU::GetFullDisplayResolution();
     render_width *= render_scale;
     render_height *= render_scale;
   }

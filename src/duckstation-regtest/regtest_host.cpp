@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2019-2025 Connor McLaughlin <stenzek@gmail.com>
+// SPDX-FileCopyrightText: 2019-2026 Connor McLaughlin <stenzek@gmail.com>
 // SPDX-License-Identifier: CC-BY-NC-ND-4.0
 
 #include "core/achievements.h"
@@ -24,6 +24,7 @@
 
 #include "util/cd_image.h"
 #include "util/gpu_device.h"
+#include "util/http_downloader.h"
 #include "util/imgui_manager.h"
 #include "util/input_manager.h"
 #include "util/translation.h"
@@ -130,8 +131,9 @@ void Host::ReportStatusMessage(std::string_view message)
   INFO_LOG("ReportStatusMessage: {}", message);
 }
 
-void Host::ConfirmMessageAsync(std::string_view title, std::string_view message, ConfirmMessageAsyncCallback callback,
-                               std::string_view yes_text, std::string_view no_text)
+void Host::ConfirmMessageAsync(std::string_view icon, std::string_view title, std::string_view message,
+                               ConfirmMessageAsyncCallback callback, std::string_view yes_text,
+                               std::string_view no_text)
 {
   if (!title.empty() && !message.empty())
     ERROR_LOG("ConfirmMessage: {}: {}", title, message);
@@ -308,6 +310,11 @@ void Host::OnMediaCaptureStarted()
 }
 
 void Host::OnMediaCaptureStopped()
+{
+  //
+}
+
+void Host::OnHTTPDownloaderActiveChanged(bool active)
 {
   //
 }
