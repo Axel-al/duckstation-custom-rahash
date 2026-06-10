@@ -3,6 +3,7 @@
 
 #include "core.h"
 #include "achievements.h"
+#include "achievements_private.h"
 #include "core_private.h"
 #include "discord_presence.h"
 #include "gdb_server.h"
@@ -692,6 +693,11 @@ bool Core::ProcessStartup(Error* error)
 
   // Initialize rapidyaml before anything can use it.
   SetRymlCallbacks();
+
+  // Achievements needs to know whether credentials are saved, and whether it should load
+  // the database/provide game icons. The refresh can happen in parallel with core init,
+  // so we have to initialize it here.
+  Achievements::ProcessStartup();
 
 #ifdef __linux__
   // Running DuckStation out of /usr is not supported and makes no sense.

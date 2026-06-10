@@ -47,16 +47,16 @@
 #include "util/ini_settings_interface.h"
 #include "util/state_wrapper.h"
 
-#include "IconsEmoji.h"
-#include "IconsFontAwesome.h"
-#include "IconsPromptFont.h"
-#include "fmt/format.h"
-#include "imgui.h"
-#include "imgui_internal.h"
-#include "rc_api_info.h"
-#include "rc_api_runtime.h"
-#include "rc_client.h"
-#include "rc_consoles.h"
+#include <IconsEmoji.h>
+#include <IconsFontAwesome.h>
+#include <IconsPromptFont.h>
+#include <fmt/format.h>
+#include <imgui.h>
+#include <imgui_internal.h>
+#include <rc_api_info.h>
+#include <rc_api_runtime.h>
+#include <rc_client.h>
+#include <rc_consoles.h>
 
 #include <algorithm>
 #include <atomic>
@@ -591,7 +591,7 @@ const std::string& Achievements::GetRichPresenceString()
   return s_state.rich_presence_string;
 }
 
-void Achievements::Initialize()
+void Achievements::ProcessStartup()
 {
   // Called on startup, no need to grab lock just to populate has saved credentials.
   {
@@ -601,7 +601,10 @@ void Achievements::Initialize()
     s_state.has_saved_credentials = (si->LookupValue("Cheevos", "Username", &username) && !username.empty() &&
                                      si->LookupValue("Cheevos", "Token", &token) && !token.empty());
   }
+}
 
+void Achievements::Initialize()
+{
   // No need to do anything else if we're not enabled.
   if (!g_settings.achievements_enabled)
     return;
@@ -694,9 +697,34 @@ void Achievements::FinishInitialize()
 
 void Achievements::DestroyClient(std::unique_lock<std::recursive_mutex>& lock)
 {
+  DebugAssert(IsActive());
   WaitForServerCallsWithYield(lock);
-  rc_client_destroy(s_state.client);
-  s_state.client = nullptr;
+
+  ClearGameInfo();
+  ClearGameHash();
+  DisableHardcoreMode(false, false);
+  CancelHashDatabaseRequests();
+
+  if (s_state.login_request)
+  {
+    rc_client_abort_async(s_state.client, s_state.login_request);
+    s_state.login_request = nullptr;
+  }
+
+#ifdef RC_CLIENT_SUPPORTS_RAINTEGRATION
+  if (s_state.using_raintegration)
+  {
+    UnloadRAIntegration(lock);
+    return;
+  }
+  else
+#endif
+  {
+    rc_client_destroy(s_state.client);
+    s_state.client = nullptr;
+  }
+
+  Host::OnAchievementsActiveChanged(false);
 }
 
 bool Achievements::HasSavedCredentials()
@@ -737,17 +765,22 @@ bool Achievements::TryLoggingInWithToken()
 
 void Achievements::UpdateSettings(const Settings& old_config)
 {
-  if (!g_settings.achievements_enabled)
+  auto lock = GetLock();
+
+  if (g_settings.achievements_enabled != old_config.achievements_enabled)
   {
     // we're done here
-    Shutdown();
-    return;
-  }
+    if (g_settings.achievements_enabled)
+    {
+      if (!IsActive())
+        CreateClient(lock, false);
+    }
+    else
+    {
+      if (IsActive())
+        DestroyClient(lock);
+    }
 
-  if (!IsActive())
-  {
-    // we just got enabled
-    Initialize();
     return;
   }
 
@@ -755,8 +788,9 @@ void Achievements::UpdateSettings(const Settings& old_config)
   if (g_settings.achievements_use_raintegration != old_config.achievements_use_raintegration)
   {
     // RAIntegration requires a full client reload?
-    Shutdown();
-    Initialize();
+    if (IsActive())
+      DestroyClient(lock);
+    CreateClient(lock, false);
     return;
   }
 #endif
@@ -767,8 +801,6 @@ void Achievements::UpdateSettings(const Settings& old_config)
     if (!g_settings.achievements_hardcore_mode)
       DisableHardcoreMode(true, true);
   }
-
-  auto lock = GetLock();
 
   // If a game is active and these settings changed, reload the game to apply them.
   // Just unload and reload without destroying the client to preserve hardcore mode.
@@ -817,27 +849,7 @@ void Achievements::Shutdown()
   if (!IsActive())
     return;
 
-  ClearGameInfo();
-  ClearGameHash();
-  DisableHardcoreMode(false, false);
-  CancelHashDatabaseRequests();
-
-  if (s_state.login_request)
-  {
-    rc_client_abort_async(s_state.client, s_state.login_request);
-    s_state.login_request = nullptr;
-  }
-
-#ifdef RC_CLIENT_SUPPORTS_RAINTEGRATION
-  if (s_state.using_raintegration)
-  {
-    UnloadRAIntegration(lock);
-    return;
-  }
-#endif
-
   DestroyClient(lock);
-  Host::OnAchievementsActiveChanged(false);
 }
 
 void Achievements::ClientMessageCallback(const char* message, const rc_client_t* client)
@@ -1322,6 +1334,13 @@ void Achievements::ClientLoadGameCallback(int result, const char* error_message,
   s_state.has_rich_presence = rc_client_has_rich_presence(client);
   s_state.game_badge_url =
     info->badge_url ? std::string(info->badge_url) : GetImageURL(info->badge_name, RC_IMAGE_TYPE_GAME);
+
+  // prefetch the game badge before any of the achievement badges, because the popup for the game summary
+  // is going to display, and we don't want a placeholder stuck there until after the badges finish
+  if (!s_state.game_badge_url.empty())
+    HTTPCache::Prefetch(s_state.game_badge_url);
+
+  // update game list badge in case it was missing
   if (info->badge_name)
     UpdateGameBadgeName(info->id, info->badge_name);
 
@@ -1889,12 +1908,6 @@ void Achievements::OnHardcoreModeChanged(bool enabled, bool display_message, boo
                                       TRANSLATE_STR("Achievements", "Restrictions are no longer active."));
   }
 
-  if (HasActiveGame() && display_game_summary)
-  {
-    UpdateGameSummary(true);
-    DisplayAchievementSummary();
-  }
-
   DebugAssert((rc_client_get_hardcore_enabled(s_state.client) != 0) == enabled);
 
   // Reload setting to permit cheating-like things if we were just disabled.
@@ -1914,6 +1927,12 @@ void Achievements::OnHardcoreModeChanged(bool enabled, bool display_message, boo
 
   // Toss away UI state, because it's invalid now
   FullscreenUI::ClearAchievementsState();
+
+  if (HasActiveGame() && display_game_summary)
+  {
+    UpdateGameSummary(true);
+    DisplayAchievementSummary();
+  }
 
   Host::OnAchievementsHardcoreModeChanged(enabled);
 }

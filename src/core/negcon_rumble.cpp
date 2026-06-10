@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: CC-BY-NC-ND-4.0
 
 #include "negcon_rumble.h"
+#include "controller_helpers.h"
 #include "settings.h"
 #include "system.h"
 
@@ -171,10 +172,9 @@ void NeGconRumble::SetBindState(u32 index, float value)
     m_half_axis_state[index - static_cast<u32>(Button::Count)] =
       static_cast<u8>(std::clamp(value * 255.0f, 0.0f, 255.0f));
 
-    // Merge left/right. Seems to be inverted.
     m_axis_state[static_cast<u32>(Axis::Steering)] =
-      ((m_half_axis_state[1] != 0) ? (127u + ((m_half_axis_state[1] + 1u) / 2u)) :
-                                     (127u - (m_half_axis_state[0] / 2u)));
+      ControllerHelpers::MergeHalfAxes(m_half_axis_state[static_cast<size_t>(HalfAxis::SteeringLeft)],
+                                       m_half_axis_state[static_cast<size_t>(HalfAxis::SteeringRight)], false);
   }
   else if (index >= static_cast<u32>(Button::Count))
   {

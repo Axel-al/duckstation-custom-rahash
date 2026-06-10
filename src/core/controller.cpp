@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2019-2025 Connor McLaughlin <stenzek@gmail.com>
+// SPDX-FileCopyrightText: 2019-2026 Connor McLaughlin <stenzek@gmail.com>
 // SPDX-License-Identifier: CC-BY-NC-ND-4.0
 
 #include "controller.h"
@@ -218,13 +218,6 @@ const char* Controller::GetPortDisplayName(u32 index)
 std::string Controller::GetSettingsSection(u32 pad)
 {
   return fmt::format("Pad{}", pad + 1u);
-}
-
-bool Controller::InCircularDeadzone(float deadzone, float pos_x, float pos_y)
-{
-  // Calculate the actual distance from center, and compare to deadzone radius.
-  const float distance = std::sqrt(pos_x * pos_x + pos_y * pos_y);
-  return (distance <= deadzone);
 }
 
 bool Controller::CanStartInAnalogMode(ControllerType ctype)

@@ -90082,26 +90082,6 @@ SLPS-00247:
     vibration: false
     multitap: false
     linkCable: false
-SCES-00510:
-  name: "King's Field"
-  sortName: "King's Field 2"
-  saveName: "King's Field (Europe) (En,Fr,De)"
-  controllers:
-    - DigitalController
-  metadata:
-    publisher: "ASCII Entertaiment"
-    developer: "From Software"
-    releaseDate: "1997-03-10"
-    genre: "First Person Shooter / RPG"
-    languages:
-      - English
-    minPlayers: 1
-    maxPlayers: 1
-    minBlocks: 2
-    maxBlocks: 5
-    vibration: false
-    multitap: false
-    linkCable: false
 SLPS-00017:
   name: "King's Field"
   localizedName: "キングスフィールド"
@@ -90115,12 +90095,51 @@ SLPS-00017:
     publisher: "From Software"
     developer: "From Software"
     releaseDate: "1994-12-16"
-    genre: "First Person Shooter / RPG"
+    genre: "First Person Action / RPG"
     languages:
       - Japanese
     minPlayers: 1
     maxPlayers: 1
     minBlocks: 5
+    maxBlocks: 5
+    vibration: false
+    multitap: false
+    linkCable: false
+SLPS-91401:
+  name: "King's Field [PSOne Books]"
+  sortName: "King's Field 1 [PSOne Books]"
+  controllers:
+    - DigitalController
+  metadata:
+    publisher: "From Software"
+    developer: "From Software"
+    releaseDate: "2001-11-15"
+    genre: "First Person Action / RPG"
+    languages:
+      - Japanese
+    minPlayers: 1
+    maxPlayers: 1
+    minBlocks: 5
+    maxBlocks: 5
+    vibration: false
+    multitap: false
+    linkCable: false
+SCES-00510:
+  name: "King's Field"
+  sortName: "King's Field 2"
+  saveName: "King's Field (Europe) (En,Fr,De)"
+  controllers:
+    - DigitalController
+  metadata:
+    publisher: "ASCII Entertaiment"
+    developer: "From Software"
+    releaseDate: "1997-03-10"
+    genre: "First Person Action / RPG"
+    languages:
+      - English
+    minPlayers: 1
+    maxPlayers: 1
+    minBlocks: 2
     maxBlocks: 5
     vibration: false
     multitap: false
@@ -90137,8 +90156,8 @@ SLUS-00158:
   metadata:
     publisher: "ASCII Entertaiment"
     developer: "From Software"
-    releaseDate: "1996-10-11"
-    genre: "First Person Shooter / RPG"
+    releaseDate: "1996-02-14"
+    genre: "First Person Action / RPG"
     languages:
       - English
     minPlayers: 1
@@ -90161,7 +90180,7 @@ SLPS-00069:
     publisher: "From Software"
     developer: "From Software"
     releaseDate: "1995-07-21"
-    genre: "First Person Shooter / RPG"
+    genre: "First Person Action / RPG"
     languages:
       - Japanese
     minPlayers: 1
@@ -90182,7 +90201,7 @@ SLPS-91003:
     publisher: "From Software"
     developer: "From Software"
     releaseDate: "1996-08-09"
-    genre: "First Person Shooter / RPG"
+    genre: "First Person Action / RPG"
     languages:
       - Japanese
     minPlayers: 1
@@ -90206,7 +90225,7 @@ SLPS-03579:
     publisher: "From Software"
     developer: "From Software"
     releaseDate: "2001-11-29"
-    genre: "First Person Shooter / RPG"
+    genre: "First Person Action / RPG"
     languages:
       - Japanese
     minPlayers: 1
@@ -90228,7 +90247,7 @@ SLUS-00255:
   metadata:
     publisher: "ASCII Entertainment"
     developer: "From Software"
-    releaseDate: "1996-11-15"
+    releaseDate: "1996-11-20"
     genre: "First Person Action / RPG"
     languages:
       - English
@@ -90289,6 +90308,22 @@ SLPM-80029:
   localizedName: "キングス・フィールドⅢ　～パイロット・スタイル～"
   sortName: "King's Field 3 - Pilot Style"
   saveName: "King's Field III - Pilot Style (Japan)"
+  controllers:
+    - DigitalController
+  metadata:
+    publisher: "From Software"
+    developer: "From Software"
+    releaseDate: "1996-08-22"
+    genre: "First Person Action / RPG"
+    languages:
+      - Japanese
+    minPlayers: 1
+    maxPlayers: 1
+    minBlocks: 0
+    maxBlocks: 0
+    vibration: false
+    multitap: false
+    linkCable: false
 SLPS-91426:
   name: "King's Field III - The Story of Verdite [PSOne Books]"
   sortName: "King's Field 3 - The Story of Verdite"
@@ -90305,25 +90340,6 @@ SLPS-91426:
     maxPlayers: 1
     minBlocks: 3
     maxBlocks: 3
-    vibration: false
-    multitap: false
-    linkCable: false
-SLPS-91401:
-  name: "King's Field [PSOne Books]"
-  sortName: "King's Field 1 [PSOne Books]"
-  controllers:
-    - DigitalController
-  metadata:
-    publisher: "From Software"
-    developer: "From Software"
-    releaseDate: "2001-11-15"
-    genre: "First Person Shooter / RPG"
-    languages:
-      - Japanese
-    minPlayers: 1
-    maxPlayers: 1
-    minBlocks: 5
-    maxBlocks: 5
     vibration: false
     multitap: false
     linkCable: false
@@ -151390,7 +151406,7 @@ SLPS-01420:
     publisher: "From Software"
     developer: "From Software"
     releaseDate: "1998-06-25"
-    genre: "First Person Shooter / RPG"
+    genre: "First Person Action / RPG"
     languages:
       - Japanese
     minPlayers: 1
@@ -151415,7 +151431,7 @@ SLUS-00863:
     publisher: "Agetec Inc"
     developer: "From Software"
     releaseDate: "1999-11-10"
-    genre: "First Person Shooter / RPG"
+    genre: "First Person Action / RPG"
     languages:
       - English
     minPlayers: 1

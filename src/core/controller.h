@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2019-2025 Connor McLaughlin <stenzek@gmail.com>
+// SPDX-FileCopyrightText: 2019-2026 Connor McLaughlin <stenzek@gmail.com>
 // SPDX-License-Identifier: CC-BY-NC-ND-4.0
 
 #pragma once
@@ -53,6 +53,9 @@ public:
   static constexpr float DEFAULT_STICK_SENSITIVITY = 1.33f;
   static constexpr float DEFAULT_BUTTON_DEADZONE = 0.25f;
 
+  /// Center position when dealing with axis values.
+  static constexpr u8 AXIS_CENTER = 0x80;
+
   explicit Controller(u32 index);
   virtual ~Controller();
 
@@ -92,9 +95,6 @@ public:
   /// Returns general information for the specified controller type.
   static const ControllerInfo& GetControllerInfo(ControllerType type);
   static const ControllerInfo* GetControllerInfo(std::string_view name);
-
-  /// Returns true if the specified coordinates are inside a circular deadzone.
-  static bool InCircularDeadzone(float deadzone, float pos_x, float pos_y);
 
   /// Converts a global pad index to a multitap port and slot.
   static std::tuple<u32, u32> ConvertPadToPortAndSlot(u32 index);

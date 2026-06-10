@@ -584,6 +584,7 @@ void MainWindow::onSystemStarting()
   s_locals.system_starting = true;
   s_locals.system_valid = false;
   s_locals.system_paused = false;
+  m_ui.actionCDROMLidStateAutomatic->setChecked(true);
 
   updateLogWidget();
   switchToEmulationView();
@@ -1935,18 +1936,18 @@ void MainWindow::setupAdditionalUi()
     QActionGroup* const order_group = new QActionGroup(m_ui.menuSortBy);
 
     QAction* const ascending_action = new QAction(tr("&Ascending"), order_group);
-    ascending_action->setIcon(QIcon(":/icons/monochrome/svg/sort-asc.svg"_L1));
+    ascending_action->setIcon(QIcon(u":/icons/monochrome/svg/sort-asc.svg"_s));
     ascending_action->setCheckable(true);
     ascending_action->setChecked(current_sort_order == Qt::AscendingOrder);
-    ascending_action->setObjectName("SortAscending"_L1);
+    ascending_action->setObjectName(u"SortAscending"_s);
     m_ui.menuSortBy->addAction(ascending_action);
     connect(ascending_action, &QAction::triggered, this, &MainWindow::onViewSortOrderActionTriggered);
 
     QAction* const descending_action = new QAction(tr("&Descending"), order_group);
-    descending_action->setIcon(QIcon(":/icons/monochrome/svg/sort-desc.svg"_L1));
+    descending_action->setIcon(QIcon(u":/icons/monochrome/svg/sort-desc.svg"_s));
     descending_action->setCheckable(true);
     descending_action->setChecked(current_sort_order == Qt::DescendingOrder);
-    descending_action->setObjectName("SortDescending"_L1);
+    descending_action->setObjectName(u"SortDescending"_s);
     m_ui.menuSortBy->addAction(descending_action);
     connect(descending_action, &QAction::triggered, this, &MainWindow::onViewSortOrderActionTriggered);
   }
@@ -1993,9 +1994,9 @@ void MainWindow::onGameListSortIndicatorOrderChanged(int column, Qt::SortOrder o
   {
     bool activate = false;
 
-    if (action->objectName() == "SortAscending"_L1)
+    if (action->objectName() == u"SortAscending"_s)
       activate = (order == Qt::AscendingOrder);
-    else if (action->objectName() == "SortDescending"_L1)
+    else if (action->objectName() == u"SortDescending"_s)
       activate = (order == Qt::DescendingOrder);
     else
       activate = (action->data() == column);
@@ -2240,6 +2241,8 @@ void MainWindow::updateEmulationActions()
   m_ui.actionMemoryScanner->setDisabled(achievements_hardcore_mode);
   m_ui.actionFreeCamera->setDisabled(achievements_hardcore_mode);
   m_ui.actionReloadTextureReplacements->setDisabled(starting_or_not_running);
+  m_ui.menuCDROMLidState->setDisabled(starting_or_not_running);
+  m_ui.actionCDROMLidState->setDisabled(starting_or_not_running);
   m_ui.actionDumpRAM->setDisabled(starting_or_not_running || achievements_hardcore_mode);
   m_ui.actionDumpVRAM->setDisabled(starting_or_not_running || achievements_hardcore_mode);
   m_ui.actionDumpSPURAM->setDisabled(starting_or_not_running || achievements_hardcore_mode);
@@ -2666,6 +2669,9 @@ void MainWindow::connectSignals()
                                              &Settings::GetLogLevelName, &Settings::GetLogLevelDisplayName,
                                              Log::DEFAULT_LOG_LEVEL, Log::Level::MaxCount);
   connect(m_ui.menuLogChannels, &QMenu::aboutToShow, this, &MainWindow::onDebugLogChannelsMenuAboutToShow);
+  connect(m_ui.actionCDROMLidStateAutomatic, &QAction::triggered, this, &MainWindow::onDebugCDROMLidStateChanged);
+  connect(m_ui.actionCDROMLidStateOpen, &QAction::triggered, this, &MainWindow::onDebugCDROMLidStateChanged);
+  connect(m_ui.actionCDROMLidStateClosed, &QAction::triggered, this, &MainWindow::onDebugCDROMLidStateChanged);
   SettingWidgetBinder::BindWidgetToBoolSetting(nullptr, m_ui.actionLogToSystemConsole, "Logging", "LogToConsole",
                                                false);
   SettingWidgetBinder::BindWidgetToBoolSetting(nullptr, m_ui.actionLogToFile, "Logging", "LogToFile", false);
@@ -3580,6 +3586,13 @@ void MainWindow::onDebugLogChannelsMenuAboutToShow()
 {
   m_ui.menuLogChannels->clear();
   LogWindow::populateFilterMenu(m_ui.menuLogChannels);
+}
+
+void MainWindow::onDebugCDROMLidStateChanged()
+{
+  const bool manual_control = !m_ui.actionCDROMLidStateAutomatic->isChecked();
+  const bool manual_open = (manual_control && m_ui.actionCDROMLidStateOpen->isChecked());
+  g_core_thread->setLidState(manual_control, manual_open);
 }
 
 MainWindow::SystemLock MainWindow::pauseAndLockSystem()
