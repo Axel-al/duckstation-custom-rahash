@@ -30,6 +30,7 @@ add_library(util
   cue_parser.h
   dyn_shaderc.h
   dyn_spirv_cross.h
+  dyn_sqlite.h
   elf_file.cpp
   elf_file.h
   gpu_device.cpp
@@ -81,6 +82,8 @@ add_library(util
   sockets.h
   spirv_module.cpp
   spirv_module.h
+  sqlite_helpers.cpp
+  sqlite_helpers.h
   state_wrapper.cpp
   state_wrapper.h
   texture_decompress.cpp
@@ -91,6 +94,8 @@ add_library(util
   wav_reader_writer.h
   window_info.cpp
   window_info.h
+  zip_helpers.cpp
+  zip_helpers.h
 )
 
 target_precompile_headers(util PRIVATE "pch.h")
@@ -98,7 +103,7 @@ target_include_directories(util PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
 target_link_libraries(util PUBLIC common imgui)
 target_link_libraries(util PRIVATE libchdr lzma libjpeg-turbo::jpeg PNG::png_shared WebP::webp
                                    plutosvg::plutosvg ZLIB::ZLIB SoundTouch::SoundTouchDLL xxhash
-                                   zstd::libzstd_shared reshadefx)
+                                   libzip::zip zstd::libzstd_shared reshadefx)
 
 if(ENABLE_X11)
   target_sources(util PRIVATE
@@ -270,7 +275,7 @@ function(add_util_resources target)
   endif()
 
   # Copy dynamically-loaded libraries (harfbuzz/shaderc/spirv-cross) into the bundle.
-  bundle_libraries(${target} spirv-cross-c-shared Shaderc::shaderc_shared)
+  bundle_libraries(${target} spirv-cross-c-shared Shaderc::shaderc_shared SQLite3::sqlite3-shared)
   if(APPLE)
     bundle_libraries(${target} harfbuzz::harfbuzz)
   endif()

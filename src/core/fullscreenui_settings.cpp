@@ -104,8 +104,8 @@ static void DrawPatchesOrCheatsSettingsPage(bool cheats);
 static void DrawCoverDownloaderWindow();
 static void SaveCoverDownloaderURLs();
 static void DrawAchievementsLoginWindow();
+static void StartAchievementsDatabaseRefresh();
 static void StartAchievementsProgressRefresh();
-static void StartAchievementsGameIconDownload();
 static void ClearWebCache();
 
 static bool ShouldShowAdvancedSettings();
@@ -220,12 +220,15 @@ struct SettingsLocals
   bool cover_downloader_use_serial_names = false;
   GPURenderer graphics_adapter_list_cache_renderer = GPURenderer::Count;
   InputBindingDialog input_binding_dialog;
+  std::unique_ptr<std::string> achievements_login_error;
+  char achievements_login_username[256] = {};
+  char achievements_login_password[256] = {};
+  char cover_downloader_template_urls[512] = {};
 };
 
 } // namespace
 
 ALIGN_TO_CACHE_LINE static SettingsLocals s_settings_locals;
-static char s_cover_downloader_template_urls[512];
 
 } // namespace FullscreenUI
 
@@ -1876,7 +1879,7 @@ void FullscreenUI::DoCopyGameSettings()
 
   Settings temp_settings;
   temp_settings.Load(*GetEditingSettingsInterface(false), *GetEditingSettingsInterface(false));
-  temp_settings.Save(*s_settings_locals.game_settings_interface, true);
+  temp_settings.Save(*s_settings_locals.game_settings_interface, true, true);
   SetSettingsChanged(s_settings_locals.game_settings_interface.get());
 
   ShowToast(OSDMessageType::Info, {},
@@ -2743,8 +2746,8 @@ void FullscreenUI::DrawCoverDownloaderWindow()
     const std::vector<std::string> urls = Core::GetBaseStringListSetting("UI", "CoverDownloaderURL");
     if (!urls.empty())
     {
-      StringUtil::Strlcpy(s_cover_downloader_template_urls, StringUtil::JoinString(urls, '\n'),
-                          sizeof(s_cover_downloader_template_urls));
+      StringUtil::Strlcpy(s_settings_locals.cover_downloader_template_urls, StringUtil::JoinString(urls, '\n'),
+                          sizeof(s_settings_locals.cover_downloader_template_urls));
     }
   }
 
@@ -2770,7 +2773,8 @@ void FullscreenUI::DrawCoverDownloaderWindow()
   ImGui::TextWrapped("%s", FSUI_CSTR("Example: https://www.example-not-a-real-domain.com/covers/${serial}.jpg"));
   ImGui::NewLine();
 
-  ImGui::InputTextMultiline("##templates", s_cover_downloader_template_urls, sizeof(s_cover_downloader_template_urls),
+  ImGui::InputTextMultiline("##templates", s_settings_locals.cover_downloader_template_urls,
+                            sizeof(s_settings_locals.cover_downloader_template_urls),
                             ImVec2(ImGui::GetCurrentWindow()->WorkRect.GetWidth(), LayoutScale(175.0f)));
 
   ImGui::SetCursorPosY(ImGui::GetCursorPosY() + LayoutScale(5.0f));
@@ -2781,7 +2785,7 @@ void FullscreenUI::DrawCoverDownloaderWindow()
 
   ImGui::SetCursorPosY(ImGui::GetCursorPosY() + LayoutScale(10.0f));
 
-  const bool download_enabled = (std::strlen(s_cover_downloader_template_urls) > 0);
+  const bool download_enabled = (std::strlen(s_settings_locals.cover_downloader_template_urls) > 0);
 
   BeginHorizontalMenuButtons(2, 200.0f);
   ResetFocusHere();
@@ -2791,7 +2795,7 @@ void FullscreenUI::DrawCoverDownloaderWindow()
     // TODO: Remove release once using move_only_function
     std::unique_ptr<ProgressCallback> progress = OpenModalProgressDialog(FSUI_STR("Cover Downloader"), 1000.0f);
     Host::QueueAsyncTask([progress = progress.release(),
-                          urls = StringUtil::SplitNewString(s_cover_downloader_template_urls, '\n'),
+                          urls = StringUtil::SplitNewString(s_settings_locals.cover_downloader_template_urls, '\n'),
                           use_serial_names = s_settings_locals.cover_downloader_use_serial_names]() {
       Error error;
       if (!GameList::DownloadCovers(
@@ -2841,7 +2845,8 @@ void FullscreenUI::DrawCoverDownloaderWindow()
 
 void FullscreenUI::SaveCoverDownloaderURLs()
 {
-  const std::vector<std::string> urls = StringUtil::SplitNewString(s_cover_downloader_template_urls, '\n');
+  const std::vector<std::string> urls =
+    StringUtil::SplitNewString(s_settings_locals.cover_downloader_template_urls, '\n');
   if (urls != Core::GetBaseStringListSetting("UI", "CoverDownloaderURL"))
     Core::SetBaseStringListSettingValue("UI", "CoverDownloaderURL", urls);
 }
@@ -5267,16 +5272,16 @@ void FullscreenUI::DrawAchievementsSettingsPage(std::unique_lock<std::mutex>& se
   {
     MenuHeading(FSUI_VSTR("Operations"));
 
-    if (MenuButton(FSUI_ICONVSTR(ICON_FA_ARROWS_ROTATE, "Refresh Achievement Progress"),
-                   FSUI_VSTR("Updates the progress database for achievements shown in the game list."), enabled))
+    if (MenuButton(FSUI_ICONVSTR(ICON_FA_ARROWS_ROTATE, "Refresh Achievement Database"),
+                   FSUI_VSTR("Updates the database for achievements shown in the game list."), enabled))
     {
-      StartAchievementsProgressRefresh();
+      StartAchievementsDatabaseRefresh();
     }
 
-    if (MenuButton(FSUI_ICONVSTR(ICON_FA_DOWNLOAD, "Download Game Icons"),
-                   FSUI_VSTR("Downloads icons for all games from RetroAchievements."), enabled))
+    if (MenuButton(FSUI_ICONVSTR(ICON_FA_RULER_HORIZONTAL, "Refresh Achievement Progress"),
+                   FSUI_VSTR("Refreshes the list of unlocked achievements."), enabled))
     {
-      StartAchievementsGameIconDownload();
+      StartAchievementsProgressRefresh();
     }
 
     if (MenuButton(FSUI_ICONVSTR(ICON_FA_TRASH, "Clear Web Cache"),
@@ -5317,16 +5322,15 @@ void FullscreenUI::DrawAchievementsLoginWindow()
 {
   static constexpr const char* LOGIN_PROGRESS_NAME = "AchievementsLogin";
 
-  static char username[256] = {};
-  static char password[256] = {};
-  static std::unique_ptr<std::string> login_error;
-
   if (!BeginFixedPopupDialog(LayoutScale(LAYOUT_LARGE_POPUP_PADDING), LayoutScale(LAYOUT_LARGE_POPUP_ROUNDING),
                              LayoutScale(600.0f, 0.0f)))
   {
-    std::memset(username, 0, sizeof(username));
-    std::memset(password, 0, sizeof(password));
-    login_error.reset();
+    // NOTE: Deliberately memset()'ed because it's credentials.
+    std::memset(s_settings_locals.achievements_login_username, 0,
+                sizeof(s_settings_locals.achievements_login_username));
+    std::memset(s_settings_locals.achievements_login_password, 0,
+                sizeof(s_settings_locals.achievements_login_password));
+    s_settings_locals.achievements_login_error.reset();
     return;
   }
 
@@ -5349,8 +5353,9 @@ void FullscreenUI::DrawAchievementsLoginWindow()
   ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ra_logo_size.y + LayoutScale(15.0f));
 
   ImGui::PushStyleColor(ImGuiCol_Text, DarkerColor(ImGui::GetStyle().Colors[ImGuiCol_Text]));
+  ImGui::PushFont(UIStyle.Font, UIStyle.MediumLargeFontSize, UIStyle.NormalFontWeight);
 
-  if (!login_error)
+  if (!s_settings_locals.achievements_login_error)
   {
     ImGui::TextWrapped(
       FSUI_CSTR("Please enter your user name and password for retroachievements.org below. Your password will "
@@ -5358,46 +5363,49 @@ void FullscreenUI::DrawAchievementsLoginWindow()
   }
   else
   {
-    ImGui::TextWrapped("%s", login_error->c_str());
+    ImGui::TextWrapped("%s", s_settings_locals.achievements_login_error->c_str());
   }
 
+  ImGui::PopFont();
   ImGui::PopStyleColor();
 
   ImGui::ItemSize(ImVec2(0.0f, LayoutScale(LAYOUT_MENU_BUTTON_SPACING * 2.0f)));
 
   const bool is_logging_in = IsBackgroundProgressDialogOpen(LOGIN_PROGRESS_NAME);
   BeginMenuButtons();
-  ResetFocusHere();
-
-  ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(LAYOUT_WIDGET_FRAME_ROUNDING));
-  ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 
   const float item_width = LayoutScale(550.0f);
+  const ImGuiInputTextFlags extra_username_flags =
+    (ResetFocusHere() ? ImGuiInputTextFlags_AlwaysActivate : 0) | (is_logging_in ? ImGuiInputTextFlags_ReadOnly : 0);
 
   ImGui::SetCursorPosX((ImGui::GetWindowWidth() - item_width) * 0.5f);
-  ImGui::SetNextItemWidth(item_width);
-  ImGui::InputTextWithHint("##username", FSUI_CSTR("User Name"), username, sizeof(username),
-                           is_logging_in ? ImGuiInputTextFlags_ReadOnly : 0);
+  InputTextWithIcon("##username", ICON_FA_ID_CARD, FSUI_CSTR("User Name"),
+                    s_settings_locals.achievements_login_username,
+                    sizeof(s_settings_locals.achievements_login_username), item_width, ImGui::GetFontSize(),
+                    UIStyle.NormalFontWeight, extra_username_flags);
   ImGui::NextColumn();
 
   ImGui::SetCursorPosX((ImGui::GetWindowWidth() - item_width) * 0.5f);
   ImGui::SetCursorPosY(ImGui::GetCursorPosY() + LayoutScale(10.0f));
-  ImGui::SetNextItemWidth(item_width);
-  ImGui::InputTextWithHint("##password", FSUI_CSTR("Password"), password, sizeof(password),
-                           is_logging_in ? (ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_Password) :
-                                           ImGuiInputTextFlags_Password);
-
-  ImGui::PopStyleVar(2);
+  InputTextWithIcon(
+    "##password", ICON_FA_KEY, FSUI_CSTR("Password"), s_settings_locals.achievements_login_password,
+    sizeof(s_settings_locals.achievements_login_password), item_width, ImGui::GetFontSize(), UIStyle.NormalFontWeight,
+    is_logging_in ? (ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_Password) : ImGuiInputTextFlags_Password);
 
   ImGui::SetCursorPosY(ImGui::GetCursorPosY() + LayoutScale(15.0f));
 
-  const bool login_enabled = (std::strlen(username) > 0 && std::strlen(password) > 0 && !is_logging_in);
+  const bool login_enabled = (std::strlen(s_settings_locals.achievements_login_username) > 0 &&
+                              std::strlen(s_settings_locals.achievements_login_password) > 0 && !is_logging_in);
 
-  if (MenuButtonWithoutSummary(FSUI_ICONVSTR(ICON_FA_KEY, "Login"), login_enabled, LAYOUT_CENTER_ALIGN_TEXT))
+  EndMenuButtons();
+  BeginHorizontalMenuButtons(2);
+
+  if (HorizontalMenuButton(FSUI_ICONVSTR(ICON_FA_KEY, "Login"), login_enabled))
   {
     OpenBackgroundProgressDialog(LOGIN_PROGRESS_NAME, FSUI_STR("Logging in to RetroAchievements..."), 0, 0, 0);
 
-    Host::RunOnCoreThread([username = std::string(username), password = std::string(password)]() {
+    Host::RunOnCoreThread([username = std::string(s_settings_locals.achievements_login_username),
+                           password = std::string(s_settings_locals.achievements_login_password)]() {
       Error error;
       const bool result = Achievements::Login(username.c_str(), password.c_str(), &error);
       VideoThread::RunOnThread([result, error = std::move(error)]() {
@@ -5409,19 +5417,43 @@ void FullscreenUI::DrawAchievementsLoginWindow()
           return;
         }
 
-        login_error = std::make_unique<std::string>(
+        s_settings_locals.achievements_login_error = std::make_unique<std::string>(
           fmt::format(FSUI_FSTR("Login Failed.\nError: {}\nPlease check your username and password, and try again."),
                       error.GetDescription()));
       });
     });
   }
 
-  if (MenuButtonWithoutSummary(FSUI_ICONVSTR(ICON_FA_XMARK, "Cancel"), !is_logging_in, LAYOUT_CENTER_ALIGN_TEXT))
+  if (HorizontalMenuButton(FSUI_ICONVSTR(ICON_FA_XMARK, "Cancel"), !is_logging_in))
     CloseFixedPopupDialog();
 
-  EndMenuButtons();
+  EndHorizontalMenuButtons();
 
   EndFixedPopupDialog();
+}
+
+void FullscreenUI::StartAchievementsDatabaseRefresh()
+{
+  auto progress = OpenModalProgressDialog(FSUI_STR("Refresh Achievement Database"));
+
+  Host::QueueAsyncTask([progress = progress.release()]() {
+    Error error;
+    const bool result = Achievements::RefreshGameList(progress, &error);
+    Host::RunOnCoreThread([error = std::move(error), progress, result]() mutable {
+      VideoThread::RunOnThread([error = std::move(error), progress, result]() mutable {
+        delete progress;
+        if (result)
+        {
+          ShowToast(OSDMessageType::Info, {}, FSUI_STR("Database updated."));
+        }
+        else
+        {
+          FullscreenUI::OpenInfoMessageDialog(ICON_EMOJI_NO_ENTRY_SIGN, FSUI_STR("Update Database"),
+                                              error.TakeDescription());
+        }
+      });
+    });
+  });
 }
 
 void FullscreenUI::StartAchievementsProgressRefresh()
@@ -5441,30 +5473,6 @@ void FullscreenUI::StartAchievementsProgressRefresh()
         else
         {
           FullscreenUI::OpenInfoMessageDialog(ICON_EMOJI_NO_ENTRY_SIGN, FSUI_STR("Update Progress"),
-                                              error.TakeDescription());
-        }
-      });
-    });
-  });
-}
-
-void FullscreenUI::StartAchievementsGameIconDownload()
-{
-  auto progress = OpenModalProgressDialog(FSUI_STR("Download Game Icons"));
-
-  Host::QueueAsyncTask([progress = progress.release()]() {
-    Error error;
-    const bool result = Achievements::DownloadGameIcons(progress, &error);
-    Host::RunOnCoreThread([error = std::move(error), progress, result]() mutable {
-      VideoThread::RunOnThread([error = std::move(error), progress, result]() mutable {
-        delete progress;
-        if (result)
-        {
-          ShowToast(OSDMessageType::Info, {}, FSUI_STR("Game icons downloaded."));
-        }
-        else
-        {
-          FullscreenUI::OpenInfoMessageDialog(ICON_EMOJI_NO_ENTRY_SIGN, FSUI_STR("Download Game Icons"),
                                               error.TakeDescription());
         }
       });
@@ -5541,6 +5549,15 @@ void FullscreenUI::DrawAdvancedSettingsPage()
                   "WireframeMode", GPUWireframeMode::Disabled, &Settings::ParseGPUWireframeMode,
                   &Settings::GetGPUWireframeModeName, &Settings::GetGPUWireframeModeDisplayName,
                   GPUWireframeMode::Count);
+
+  DrawToggleSetting(
+    bsi, FSUI_VSTR("Disable Textures"),
+    FSUI_VSTR("Disables texture emulation in the GPU, forcing all primitives to only show vertex colours."), "GPU",
+    "DisableTextures", false);
+  DrawToggleSetting(
+    bsi, FSUI_VSTR("Disable Vertex Lighting"),
+    FSUI_VSTR("Disables vertex lighting in the GPU, forcing all primitives to only show raw texture colours."), "GPU",
+    "DisableVertexLighting", false);
 
   MenuHeading(FSUI_VSTR("CPU Emulation"));
 

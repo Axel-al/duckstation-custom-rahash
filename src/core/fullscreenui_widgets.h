@@ -342,7 +342,7 @@ enum class FocusResetType : u8
 };
 void QueueResetFocus(FocusResetType type);
 void CancelResetFocus();
-void ResetFocusHere();
+bool ResetFocusHere();
 bool IsFocusResetQueued();
 bool IsFocusResetFromWindowChange();
 FocusResetType GetQueuedFocusResetType();
@@ -529,6 +529,10 @@ void EndSplitWindowContent();
 bool WasSplitWindowChanged();
 void FocusSplitWindowContent();
 bool SplitWindowIsNavWindow();
+
+bool InputTextWithIcon(const char* str_id, std::string_view icon, const char* hint, char* buf, size_t buf_size,
+                       float width, float font_size, float font_weight, ImGuiInputTextFlags flags = 0,
+                       ImGuiInputTextCallback callback = nullptr, void* user_data = nullptr);
 
 bool AreAnyWidgetsDialogOpen();
 bool AreAnyWidgetsDialogInteractable();

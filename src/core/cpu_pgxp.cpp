@@ -1606,7 +1606,7 @@ void CPU::PGXP::CPU_SLL(Instruction instr, u32 rtVal)
   CPU_SLL(instr, rtVal, sh);
 }
 
-void CPU::PGXP::CPU_SLLV(Instruction instr, u32 rtVal, u32 rsVal)
+void CPU::PGXP::CPU_SLLV(Instruction instr, u32 rsVal, u32 rtVal)
 {
   LOG_VALUES_C2(instr.r.rt.GetValue(), rtVal, instr.r.rs.GetValue(), rsVal);
 
@@ -1617,8 +1617,15 @@ void CPU::PGXP::CPU_SLLV(Instruction instr, u32 rtVal, u32 rsVal)
 
 ALWAYS_INLINE_RELEASE void CPU::PGXP::CPU_SRx(Instruction instr, u32 rtVal, u32 sh, bool sign, bool is_variable)
 {
-  const u32 rdVal = sign ? static_cast<u32>(static_cast<s32>(rtVal) >> sh) : (rtVal >> sh);
   PGXPValue& prtVal = ValidateAndGetRtValue(instr, rtVal);
+  PGXPValue& prdVal = GetRdValue(instr);
+  if (sh == 0)
+  {
+    prdVal = prtVal;
+    return;
+  }
+
+  const u32 rdVal = sign ? static_cast<u32>(static_cast<s32>(rtVal) >> sh) : (rtVal >> sh);
 
   double x = prtVal.x;
   double y = sign ? prtVal.y : f16Unsign(prtVal.y);
@@ -1658,7 +1665,6 @@ ALWAYS_INLINE_RELEASE void CPU::PGXP::CPU_SRx(Instruction instr, u32 rtVal, u32 
   else
     y = y / static_cast<double>(1 << sh);
 
-  PGXPValue& prdVal = GetRdValue(instr);
 
   // Use low precision/rounded values when we're not shifting an entire component,
   // and it's not originally from a 3D value. Too many false positives in P2/etc.
@@ -1691,7 +1697,7 @@ void CPU::PGXP::CPU_SRL(Instruction instr, u32 rtVal)
   CPU_SRx(instr, rtVal, sh, false, false);
 }
 
-void CPU::PGXP::CPU_SRLV(Instruction instr, u32 rtVal, u32 rsVal)
+void CPU::PGXP::CPU_SRLV(Instruction instr, u32 rsVal, u32 rtVal)
 {
   LOG_VALUES_C2(instr.r.rt.GetValue(), rtVal, instr.r.rs.GetValue(), rsVal);
 
@@ -1709,7 +1715,7 @@ void CPU::PGXP::CPU_SRA(Instruction instr, u32 rtVal)
   CPU_SRx(instr, rtVal, sh, true, false);
 }
 
-void CPU::PGXP::CPU_SRAV(Instruction instr, u32 rtVal, u32 rsVal)
+void CPU::PGXP::CPU_SRAV(Instruction instr, u32 rsVal, u32 rtVal)
 {
   LOG_VALUES_C2(instr.r.rt.GetValue(), rtVal, instr.r.rs.GetValue(), rsVal);
 

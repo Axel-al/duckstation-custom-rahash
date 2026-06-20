@@ -213,6 +213,10 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* dialog, QWidget* 
           &GraphicsSettingsWidget::updatePGXPSettingsEnabled);
   connect(m_ui.pgxpDepthBuffer, &QCheckBox::checkStateChanged, this,
           &GraphicsSettingsWidget::updatePGXPSettingsEnabled);
+  connect(m_ui.resetPGXPGeometryTolerance, &QPushButton::clicked, this,
+          &GraphicsSettingsWidget::onResetPGXPGeometryToleranceClicked);
+  connect(m_ui.resetPGXPDepthClearThreshold, &QPushButton::clicked, this,
+          &GraphicsSettingsWidget::onResetPGXPDepthClearThresholdClicked);
 
   SettingWidgetBinder::SetAvailability(m_ui.pgxpTextureCorrection,
                                        !m_dialog->hasGameTrait(GameDatabase::Trait::DisablePGXPTextureCorrection));
@@ -292,6 +296,9 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* dialog, QWidget* 
                                                Settings::ParseGPUWireframeMode, Settings::GetGPUWireframeModeName,
                                                &Settings::GetGPUWireframeModeDisplayName,
                                                Settings::DEFAULT_GPU_WIREFRAME_MODE, GPUWireframeMode::Count);
+  SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.gpuDisableTextures, "GPU", "DisableTextures", false);
+  SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.gpuDisableVertexLighting, "GPU", "DisableVertexLighting",
+                                               false);
 
   SettingWidgetBinder::BindWidgetToEnumSetting(
     sif, m_ui.gpuDumpCompressionMode, "GPU", "DumpCompressionMode", &Settings::ParseGPUDumpCompressionMode,
@@ -533,6 +540,12 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* dialog, QWidget* 
                              tr("Draws a wireframe outline of the triangles rendered by the console's GPU, either as a "
                                 "replacement or an overlay."));
   dialog->registerWidgetHelp(
+    m_ui.gpuDisableTextures, tr("Disable Textures"), tr("Unchecked"),
+    tr("Disables texture emulation in the GPU, forcing all primitives to only show vertex colours."));
+  dialog->registerWidgetHelp(
+    m_ui.gpuDisableVertexLighting, tr("Disable Vertex Lighting"), tr("Unchecked"),
+    tr("Disables vertex lighting in the GPU, forcing all primitives to only show raw texture colours."));
+  dialog->registerWidgetHelp(
     m_ui.useDebugDevice, tr("Use Debug Device"), tr("Unchecked"),
     tr("Enable debugging when supported by the host's renderer API. <strong>Only for developer use.</strong>"));
   dialog->registerWidgetHelp(
@@ -709,7 +722,7 @@ void GraphicsSettingsWidget::populateGPUAdaptersAndResolutions(RenderAPI render_
       {
         // if the adapter is not available, ensure it's in the list anyway, otherwise select the default
         const QString qadaptername = QString::fromStdString(current_adapter_name);
-        m_ui.adapter->addItem(qadaptername, QVariant(qadaptername));
+        m_ui.adapter->addItem(tr("%1 [Unavailable]").arg(qadaptername), QVariant(qadaptername));
       }
     }
 
@@ -982,8 +995,10 @@ void GraphicsSettingsWidget::updatePGXPSettingsEnabled()
   m_ui.pgxpVertexCache->setEnabled(enabled && !m_dialog->hasGameTrait(GameDatabase::Trait::ForcePGXPVertexCache));
   m_ui.pgxpGeometryTolerance->setEnabled(enabled);
   m_ui.pgxpGeometryToleranceLabel->setEnabled(enabled);
+  m_ui.resetPGXPGeometryTolerance->setEnabled(enabled);
   m_ui.pgxpDepthClearThreshold->setEnabled(depth_enabled);
   m_ui.pgxpDepthClearThresholdLabel->setEnabled(depth_enabled);
+  m_ui.resetPGXPDepthClearThreshold->setEnabled(depth_enabled);
   m_ui.pgxpDisableOn2DPolygons->setEnabled(enabled &&
                                            !m_dialog->hasGameTrait(GameDatabase::Trait::DisablePGXPOn2DPolygons));
   m_ui.pgxpTransparentDepthTest->setEnabled(depth_enabled);
@@ -996,9 +1011,6 @@ void GraphicsSettingsWidget::updateResolutionDependentOptions()
   const GPUTextureFilter texture_filtering =
     Settings::ParseTextureFilterName(m_dialog->getEffectiveStringValue("GPU", "TextureFilter").c_str())
       .value_or(Settings::DEFAULT_GPU_TEXTURE_FILTER);
-  const GPUTextureFilter sprite_texture_filtering =
-    Settings::ParseTextureFilterName(m_dialog->getEffectiveStringValue("GPU", "SpriteTextureFilter").c_str())
-      .value_or(texture_filtering);
   m_ui.forceRoundedTexcoords->setEnabled(
     is_hardware && scale != 1 && texture_filtering == GPUTextureFilter::Nearest &&
     !m_dialog->hasGameTrait(GameDatabase::Trait::ForceRoundUpscaledTextureCoordinates));
@@ -1105,6 +1117,25 @@ void GraphicsSettingsWidget::onFineCropResetClicked()
     m_ui.displayFineCropRight->setValue(0);
     m_ui.displayFineCropBottom->setValue(0);
   }
+}
+
+void GraphicsSettingsWidget::onResetPGXPGeometryToleranceClicked()
+{
+  m_dialog->setFloatSettingValue("GPU", "PGXPTolerance",
+                                 m_dialog->isPerGameSettings() ? std::nullopt : std::make_optional(-1.0f));
+  SettingWidgetBinder::DisconnectWidget(m_ui.pgxpGeometryTolerance);
+  SettingWidgetBinder::BindWidgetToFloatSetting(m_dialog->getSettingsInterface(), m_ui.pgxpGeometryTolerance, "GPU",
+                                                "PGXPTolerance", -1.0f);
+}
+
+void GraphicsSettingsWidget::onResetPGXPDepthClearThresholdClicked()
+{
+  m_dialog->setFloatSettingValue(
+    "GPU", "PGXPDepthThreshold",
+    m_dialog->isPerGameSettings() ? std::nullopt : std::make_optional(Settings::DEFAULT_GPU_PGXP_DEPTH_THRESHOLD));
+  SettingWidgetBinder::DisconnectWidget(m_ui.pgxpDepthClearThreshold);
+  SettingWidgetBinder::BindWidgetToFloatSetting(m_dialog->getSettingsInterface(), m_ui.pgxpDepthClearThreshold, "GPU",
+                                                "PGXPDepthThreshold", Settings::DEFAULT_GPU_PGXP_DEPTH_THRESHOLD);
 }
 
 void GraphicsSettingsWidget::onEnableTextureCacheChanged()

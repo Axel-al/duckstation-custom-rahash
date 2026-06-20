@@ -3,6 +3,7 @@
   <Import Project="..\..\dep\vsprops\Configurations.props" />
   <ItemGroup>
     <ClInclude Include="animated_image.h" />
+    <ClInclude Include="dyn_sqlite.h" />
     <ClInclude Include="http_cache.h" />
     <ClInclude Include="object_archive.h" />
     <ClInclude Include="compress_helpers.h" />
@@ -97,6 +98,7 @@
     <ClInclude Include="shiftjis.h" />
     <ClInclude Include="sockets.h" />
     <ClInclude Include="spirv_module.h" />
+    <ClInclude Include="sqlite_helpers.h" />
     <ClInclude Include="state_wrapper.h" />
     <ClInclude Include="texture_decompress.h" />
     <ClInclude Include="translation.h" />
@@ -115,6 +117,7 @@
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="xinput_source.h" />
+    <ClInclude Include="zip_helpers.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="animated_image.cpp" />
@@ -205,6 +208,7 @@
     <ClCompile Include="page_fault_handler.cpp" />
     <ClCompile Include="sockets.cpp" />
     <ClCompile Include="spirv_module.cpp" />
+    <ClCompile Include="sqlite_helpers.cpp" />
     <ClCompile Include="state_wrapper.cpp" />
     <ClCompile Include="texture_decompress.cpp" />
     <ClCompile Include="translation.cpp" />
@@ -223,6 +227,7 @@
     </ClCompile>
     <ClCompile Include="xaudio2_audio_stream.cpp" />
     <ClCompile Include="xinput_source.cpp" />
+    <ClCompile Include="zip_helpers.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\dep\cubeb\cubeb.vcxproj">

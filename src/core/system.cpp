@@ -209,7 +209,6 @@ static void DoMemoryState(StateWrapper& sw, MemorySaveState& mss, bool update_di
 static bool IsExecutionInterrupted();
 static void CheckForAndExitExecution();
 
-static void SetRewinding(bool enabled);
 static void DoRewind();
 
 static bool DoRunahead();
@@ -1135,7 +1134,7 @@ void System::SetDefaultSettings(SettingsInterface& si)
   for (u32 i = 0; i < NUM_CONTROLLER_AND_CARD_PORTS; i++)
     temp.controller_types[i] = g_settings.controller_types[i];
 
-  temp.Save(si, false);
+  temp.Save(si, false, false);
 
   si.SetBoolValue("Main", "StartPaused", false);
   si.SetBoolValue("Main", "StartFullscreen", false);
@@ -3699,35 +3698,6 @@ void System::SetTurboEnabled(bool enabled)
   UpdateSpeedLimiterState();
 }
 
-void System::SetRewindState(bool enabled)
-{
-  if (!System::IsValid())
-    return;
-
-  if (!g_settings.rewind_enable)
-  {
-    if (enabled)
-    {
-      Host::AddKeyedOSDMessage(OSDMessageType::Info, "SetRewindState",
-                               TRANSLATE_STR("OSDMessage", "Rewinding is not enabled."));
-    }
-
-    return;
-  }
-
-  if (Achievements::IsHardcoreModeActive() && enabled)
-  {
-    Achievements::ConfirmHardcoreModeDisableAsync("Rewinding", [](bool approved) {
-      if (approved)
-        SetRewindState(true);
-    });
-    return;
-  }
-
-  System::SetRewinding(enabled);
-  UpdateSpeedLimiterState();
-}
-
 void System::FrameStep()
 {
   if (!IsValid())
@@ -4460,6 +4430,8 @@ void System::CheckForSettingsChanges(const Settings& old_settings)
         g_settings.gpu_fifo_size != old_settings.gpu_fifo_size ||
         g_settings.gpu_max_run_ahead != old_settings.gpu_max_run_ahead ||
         g_settings.gpu_force_video_timing != old_settings.gpu_force_video_timing ||
+        g_settings.gpu_disable_textures != old_settings.gpu_disable_textures ||
+        g_settings.gpu_disable_vertex_lighting != old_settings.gpu_disable_vertex_lighting ||
         g_settings.display_crop_mode != old_settings.display_crop_mode ||
         g_settings.display_active_start_offset != old_settings.display_active_start_offset ||
         g_settings.display_active_end_offset != old_settings.display_active_end_offset ||
@@ -4848,6 +4820,10 @@ void System::WarnAboutUnsafeSettings()
     }
     if (g_settings.gpu_wireframe_mode != GPUWireframeMode::Disabled)
       append(TRANSLATE_SV("System", "Wireframe rendering disabled."));
+    if (g_settings.gpu_disable_textures)
+      append(TRANSLATE_SV("System", "Textures enabled."));
+    if (g_settings.gpu_disable_vertex_lighting)
+      append(TRANSLATE_SV("System", "Vertex lighting enabled."));
     if (g_settings.gpu_downsample_mode != GPUDownsampleMode::Disabled)
       append(TRANSLATE_SV("System", "Downsampling disabled."));
     if (g_settings.display_deinterlacing_mode == DisplayDeinterlacingMode::Progressive)
@@ -5072,9 +5048,14 @@ bool System::IsRewinding()
   return (s_state.rewind_load_frequency >= 0);
 }
 
-void System::SetRewinding(bool enabled)
+void System::SetRewindState(bool enabled)
 {
+  if (!System::IsValid() || !g_settings.rewind_enable)
+    return;
+
   const bool was_enabled = IsRewinding();
+  if (enabled == was_enabled)
+    return;
 
   if (enabled)
   {
@@ -5106,6 +5087,8 @@ void System::SetRewinding(bool enabled)
       s_state.rewind_save_counter = s_state.rewind_save_frequency;
     }
   }
+
+  UpdateSpeedLimiterState();
 }
 
 void System::DoRewind()

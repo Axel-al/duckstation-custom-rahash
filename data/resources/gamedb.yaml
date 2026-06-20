@@ -40032,6 +40032,8 @@ SLUS-01193:
     versionTested: "0.1-1336-gd711baa"
   controllers:
     - DigitalController
+  traits:
+    - ForcePGXPCPUMode # Required for PGXP to work properly.
   metadata:
     publisher: "Bandai"
     developer: "Bandai"
@@ -40225,6 +40227,8 @@ SLPS-02844:
   saveName: "DigimonWorld 2 (Japan)"
   controllers:
     - DigitalController
+  traits:
+    - ForcePGXPCPUMode # Required for PGXP to work properly.
   metadata:
     publisher: "Bandai"
     developer: "Bandai"
